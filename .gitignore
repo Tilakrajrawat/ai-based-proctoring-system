@@ -1,0 +1,85 @@
+# ========================
+# OS / Editor
+# ========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ========================
+# Node / Next.js
+# ========================
+node_modules/
+.next/
+out/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment files (keep templates)
+.env
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+!.env.example
+!.env.template
+
+# Vercel
+.vercel/
+
+# ========================
+# Spring Boot / Java / Maven
+# ========================
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven Wrapper (must NOT ignore)
+# KEEP .mvn/wrapper/*
+# so no ignore rules here
+
+# Gradle
+.gradle/
+build/
+
+# Logs
+*.log
+
+# ========================
+# Python (if used)
+# ========================
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ========================
+# Databases
+# ========================
+data/
+mongodb-data/
+*.lock
+
+# ========================
+# Testing / Coverage
+# ========================
+coverage/
+.jacoco/
+
+# ========================
+# Misc
+# ========================
+tmp/
+.cache/
+*.pem

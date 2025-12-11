@@ -1,0 +1,14 @@
+package com.proctoring.backend.model.incident;
+
+public enum IncidentType {
+    FACE_NOT_DETECTED,
+    MULTIPLE_FACES_DETECTED,
+    EYES_CLOSED,
+    LOOKING_AWAY,
+    PHONE_DETECTED,
+    SPEAKING_DETECTED,
+    SESSION_TIMEOUT,
+    PROCTOR_RESUMED_SESSION,
+    PROCTOR_ENDED_SESSION,
+    SESSION_AUTO_SUSPEND
+}
