@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gaze Tracking Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .video-container { text-align: center; margin: 20px 0; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .warning { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .normal { background-color: #e8f5e8; color: #2e7d32; border: 1px solid #a5d6a7; }
+        img { max-width: 100%; border: 2px solid #ddd; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1> AI Gaze Tracking Demo</h1>
+        
+        <div class="video-container">
+            <img src="{{ url_for('video_feed') }}" alt="Gaze Tracking Feed">
+        </div>
+        
+        <div id="status" class="status normal">
+            <h3>Status: <span id="status-text">Normal</span></h3>
+            <p id="message">Monitoring gaze...</p>
+        </div>
+        
+        <div class="info">
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('status');
+                    const statusText = document.getElementById('status-text');
+                    const message = document.getElementById('message');
+                    
+                    if (data.warning) {
+                        statusDiv.className = 'status warning';
+                        statusText.textContent = 'WARNING';
+                        message.textContent = data.message || 'LOOK AT THE SCREEN!';
+                    } else {
+                        statusDiv.className = 'status normal';
+                        statusText.textContent = 'Normal';
+                        message.textContent = 'Monitoring gaze...';
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        // Update status every second
+        setInterval(updateStatus, 1000);
+        updateStatus(); // Initial update
+    </script>
+</body>
+</html>

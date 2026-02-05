@@ -49,8 +49,7 @@ public class IncidentService {
     private void applySeverityAndAutoSuspend(Incident incident) {
 
         ExamSession session = sessionRepository
-                .findById(incident.getSessionId())
-                .orElse(null);
+                .findById(incident.getSessionId());
 
         if (session == null) return;
 

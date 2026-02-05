@@ -1,15 +1,10 @@
 package com.proctoring.backend.model.session;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
 import java.time.Instant;
+import java.util.UUID;
 
-@Document(collection = "exam_sessions")
 public class ExamSession {
   
-
-    @Id
     private String id;
 
     private String studentId;   // reference User
@@ -27,24 +22,30 @@ public class ExamSession {
     private double totalSeverity;
     private Instant lastProctorActionAt;
 
-    public ExamSession() {}
+    public ExamSession() {
+        this.id = UUID.randomUUID().toString();
+    }
 
     public ExamSession(String studentId, String examId) {
-    this.studentId = studentId.trim();
-    this.examId = examId.trim();
-    this.status = SessionStatus.ACTIVE;
-    this.startedAt = Instant.now();
-    this.lastHeartbeatAt = Instant.now();
-    this.createdAt = Instant.now();
-    this.updatedAt = Instant.now();
-    this.totalSeverity = 0.0;
-
-}
+        this.id = UUID.randomUUID().toString();
+        this.studentId = studentId.trim();
+        this.examId = examId.trim();
+        this.status = SessionStatus.ACTIVE;
+        this.startedAt = Instant.now();
+        this.lastHeartbeatAt = Instant.now();
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+        this.totalSeverity = 0.0;
+    }
 
 
     public String getId() {
-    return id;
-}
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
 public String getStudentId() {
     return studentId;

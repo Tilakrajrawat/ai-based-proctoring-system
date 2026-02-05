@@ -1,14 +1,10 @@
 package com.proctoring.backend.model.user;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
 import java.time.Instant;
+import java.util.UUID;
 
-@Document(collection = "users")
 public class User {
 
-    @Id
     private String id;
 
     private String email;
@@ -19,11 +15,13 @@ public class User {
     private Instant updatedAt;
 
     public User() {
+        this.id = UUID.randomUUID().toString();
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
 
     public User(String email, String passwordHash, Role role) {
+        this.id = UUID.randomUUID().toString();
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role;
@@ -33,6 +31,10 @@ public class User {
 
     public String getId() {
         return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getEmail() {

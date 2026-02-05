@@ -1,14 +1,10 @@
 package com.proctoring.backend.model.incident;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
 import java.time.Instant;
+import java.util.UUID;
 
-@Document(collection = "incidents")
 public class Incident {
 
-    @Id
     private String id;
 
     private String sessionId;
@@ -21,11 +17,13 @@ public class Incident {
     private Instant createdAt;
 
     public Incident() {
+        this.id = UUID.randomUUID().toString();
         this.detectedAt = Instant.now();
         this.createdAt = Instant.now();
     }
 
     public Incident(String sessionId, IncidentType type, double confidence) {
+        this.id = UUID.randomUUID().toString();
         this.sessionId = sessionId.trim();
         this.type = type;
         this.confidence = confidence;
@@ -35,6 +33,10 @@ public class Incident {
 
     public String getId() {
         return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getSessionId() {

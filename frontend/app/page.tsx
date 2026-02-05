@@ -16,13 +16,20 @@ interface ExamSession {
   status: SessionStatus;
   totalSeverity: number;
   lastHeartbeatAt: string;
+  gazeTrackingActive?: boolean;
+}
+
+interface GazeStatus {
+  sessionId: string;
+  active: boolean;
+  lastCheck: string;
 }
 
 /* =====================
    Config
 ===================== */
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL!;
+const API_BASE = "http://127.0.0.1:8080";
 
 /* =====================
    Page
@@ -32,6 +39,7 @@ export default function ProctorDashboard() {
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [gazeServiceHealth, setGazeServiceHealth] = useState<boolean>(false);
 
   /* =====================
      Load sessions
@@ -51,8 +59,33 @@ export default function ProctorDashboard() {
     }
   };
 
+  /* =====================
+     Gaze Tracking Functions
+  ===================== */
+
+  const checkGazeServiceHealth = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/gaze/health`);
+      setGazeServiceHealth(res.status === 200);
+    } catch (err) {
+      setGazeServiceHealth(false);
+    }
+  };
+
+  const triggerGazeAnalysis = async (sessionId: string) => {
+    try {
+      await axios.post(`${API_BASE}/api/gaze/analyze/${sessionId}`);
+      // Refresh sessions to see updated incidents
+      fetchSessions();
+    } catch (err) {
+      console.error("Failed to trigger gaze analysis", err);
+      alert("Failed to trigger gaze analysis");
+    }
+  };
+
   useEffect(() => {
     fetchSessions();
+    checkGazeServiceHealth();
   }, []);
 
   /* =====================
@@ -100,6 +133,17 @@ export default function ProctorDashboard() {
       <h1 className="text-3xl font-semibold mb-6">
         Proctor Dashboard
       </h1>
+
+      {/* Gaze Service Health Status */}
+      <div className="mb-6 p-4 border rounded-lg">
+        <h2 className="text-lg font-semibold mb-2">AI Gaze Tracking Status</h2>
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${gazeServiceHealth ? "bg-green-500" : "bg-red-500"}`}></div>
+          <span className={gazeServiceHealth ? "text-green-600" : "text-red-600"}>
+            {gazeServiceHealth ? "Gaze Tracking Service Online" : "Gaze Tracking Service Offline"}
+          </span>
+        </div>
+      </div>
 
       {sessions.length === 0 ? (
         <p>No active sessions.</p>
@@ -175,6 +219,14 @@ export default function ProctorDashboard() {
                   className="px-2 py-1 text-sm bg-green-600 text-white rounded disabled:opacity-50"
                 >
                   Resume
+                </button>
+
+                <button
+                  onClick={() => triggerGazeAnalysis(session.id)}
+                  disabled={!gazeServiceHealth || session.status !== "ACTIVE"}
+                  className="px-2 py-1 text-sm bg-purple-600 text-white rounded disabled:opacity-50"
+                >
+                  🎯 Analyze Gaze
                 </button>
 
                 <button

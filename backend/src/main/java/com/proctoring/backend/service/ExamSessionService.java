@@ -40,8 +40,11 @@ public class ExamSessionService {
     }
 
     public ExamSession getSession(String sessionId) {
-        return sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Session not found"));
+        ExamSession session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            throw new IllegalArgumentException("Session not found");
+        }
+        return session;
     }
 
     public List<ExamSession> getAll() {

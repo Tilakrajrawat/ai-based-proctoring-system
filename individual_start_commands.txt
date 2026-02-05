@@ -1,0 +1,34 @@
+# Individual Service Start Commands
+# AI Proctoring System - Run each service separately
+
+## 1. Python Gaze Tracking Service (Port 5001)
+python gaze_service.py
+
+## 2. Original Gaze Demo (Port 5000)
+python external_resources\original_gaze_tracker\face_eye_tracker.py
+
+## 3. Spring Boot Backend (Port 8080)
+cd backend
+set JAVA_HOME=C:\Program Files\Java\jdk-24
+set PATH=%JAVA_HOME%\bin;%PATH%
+./mvnw.cmd spring-boot:run
+
+## 4. Frontend Dashboard (Port 3000)
+cd frontend
+npm run dev
+
+## 5. Install Dependencies (First time only)
+pip install -r external_resources\config\requirements.txt
+cd frontend && npm install
+
+## 6. Health Check Commands
+curl http://localhost:5001/health
+curl http://localhost:8080/api/gaze/health
+curl http://localhost:8080/sessions/all
+
+## 7. Test Commands
+# Create session
+curl -X POST "http://localhost:8080/sessions/start?studentId=test123&examId=exam456"
+
+# Test gaze analysis (replace SESSION_ID)
+curl -X POST http://localhost:8080/api/gaze/analyze/SESSION_ID
