@@ -1,54 +1,176 @@
 package com.proctoring.backend.controller;
-import java.util.List;
-import com.proctoring.backend.model.session.SessionStatus;
-
+import com.proctoring.backend.dto.AssignUserRequest;
+import com.proctoring.backend.model.session.ExamAssignment;
+import com.proctoring.backend.model.session.ExamRole;
 import com.proctoring.backend.model.session.ExamSession;
-import com.proctoring.backend.service.ExamSessionService;
+import com.proctoring.backend.repository.ExamAssignmentRepository;
+import com.proctoring.backend.repository.ExamSessionRepository;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.proctoring.backend.dto.MyExamResponse;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/sessions")
+@RequestMapping("/api")
 public class ExamSessionController {
 
-    private final ExamSessionService service;
+    private final ExamSessionRepository examSessionRepository;
+    private final ExamAssignmentRepository assignmentRepository;
 
-    public ExamSessionController(ExamSessionService service) {
-        this.service = service;
-    }
-
-    @PostMapping("/start")
-    public ExamSession startSession(
-            @RequestParam String studentId,
-            @RequestParam String examId
+    public ExamSessionController(
+            ExamSessionRepository examSessionRepository,
+            ExamAssignmentRepository assignmentRepository
     ) {
-        return service.startSession(studentId, examId);
+        this.examSessionRepository = examSessionRepository;
+        this.assignmentRepository = assignmentRepository;
     }
-    @PostMapping("/heartbeat/{sessionId}")
-public ExamSession heartbeat(@PathVariable String sessionId) {
-    return service.heartbeat(sessionId);
+
+    @PostMapping("/exams")
+    public ExamSession createExam(
+            @RequestBody ExamSession exam,
+            Authentication authentication
+    ) {
+        String email = authentication.getName();
+
+        ExamSession savedExam = examSessionRepository.save(exam);
+
+        ExamAssignment assignment = new ExamAssignment();
+        assignment.setExamId(savedExam.getId()); // String ID ✔
+        assignment.setEmail(email);
+        assignment.setRole(ExamRole.ADMIN);
+
+        assignmentRepository.save(assignment);
+
+        return savedExam;
+    }
+    @GetMapping("/my-exams")
+public List<MyExamResponse> getMyExams(Authentication authentication) {
+
+    String email = authentication.getName();
+
+    return assignmentRepository
+            .findByEmail(email)
+            .stream()
+            .map(a -> new MyExamResponse(
+                    a.getExamId(),
+                    a.getRole()
+            ))
+            .collect(Collectors.toList());
 }
-@GetMapping("/{sessionId}")
-public ExamSession getSession(@PathVariable String sessionId) {
-    return service.getSession(sessionId);
+@PostMapping("/exams/{examId}/assign")
+public String assignUserToExam(
+        @PathVariable String examId,
+        @RequestBody AssignUserRequest request,
+        Authentication authentication
+) {
+    String adminEmail = authentication.getName();
+
+    //  Check ADMIN role for this exam
+    ExamAssignment adminAssignment = assignmentRepository
+            .findByExamIdAndEmail(examId, adminEmail)
+            .orElseThrow(() -> new RuntimeException("Not assigned to exam"));
+
+    if (adminAssignment.getRole() != ExamRole.ADMIN) {
+        throw new RuntimeException("Only ADMIN can assign users");
+    }
+
+    //  Prevent duplicate assignment
+    boolean exists = assignmentRepository
+            .existsByExamIdAndEmailAndRole(
+                    examId,
+                    request.getEmail(),
+                    request.getRole()
+            );
+
+    if (exists) {
+        return "User already assigned with this role";
+    }
+
+    // 3 Assign user
+    ExamAssignment assignment = new ExamAssignment();
+    assignment.setExamId(examId);
+    assignment.setEmail(request.getEmail());
+    assignment.setRole(request.getRole());
+
+    assignmentRepository.save(assignment);
+
+    return "User assigned successfully";
 }
-@GetMapping("/all")
-public List<ExamSession> getAllSessions() {
-    return service.getAll();
+@GetMapping("/exams/{examId}/access")
+public String accessExam(
+        @PathVariable String examId,
+        Authentication authentication
+) {
+    String email = authentication.getName();
+
+    ExamAssignment assignment = assignmentRepository
+            .findByExamIdAndEmail(examId, email)
+            .orElseThrow(() -> new RuntimeException("Not assigned to this exam"));
+
+    if (assignment.getRole() != ExamRole.STUDENT) {
+        throw new RuntimeException("Only STUDENT can access exam");
+    }
+
+    return "Access granted";
 }
-@PostMapping("/suspend/{sessionId}")
-public ExamSession suspendSession(@PathVariable String sessionId) {
-    return service.suspendByProctor(sessionId);
+@GetMapping("/exams/{examId}/proctor/access")
+public String proctorAccess(
+        @PathVariable String examId,
+        Authentication authentication
+) {
+    String email = authentication.getName();
+
+    ExamAssignment assignment = assignmentRepository
+            .findByExamIdAndEmail(examId, email)
+            .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+    if (assignment.getRole() == ExamRole.PROCTOR || assignment.getRole() == ExamRole.ADMIN) {
+        return "ACCESS_GRANTED";
+    }
+
+    throw new RuntimeException("FORBIDDEN");
+}
+@GetMapping("/exams/{examId}/proctor/sessions")
+public List<ExamSession> getExamSessionsForProctor(
+        @PathVariable String examId,
+        Authentication authentication
+) {
+    String email = authentication.getName();
+
+    ExamAssignment assignment = assignmentRepository
+            .findByExamIdAndEmail(examId, email)
+            .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+    if (assignment.getRole() != ExamRole.PROCTOR && assignment.getRole() != ExamRole.ADMIN) {
+        throw new RuntimeException("Forbidden");
+    }
+
+    return examSessionRepository.findAll()
+            .stream()
+            .filter(s -> examId.equals(s.getExamId()))
+            .toList();
 }
 
-@PostMapping("/resume/{sessionId}")
-public ExamSession resumeSession(@PathVariable String sessionId) {
-    return service.resumeSession(sessionId);
-}
+@GetMapping("/exams/{examId}/proctor/students")
+public List<ExamSession> getStudents(
+        @PathVariable String examId,
+        Authentication authentication
+) {
+    String email = authentication.getName();
 
-@PostMapping("/end/{sessionId}")
-public ExamSession endSession(@PathVariable String sessionId) {
-    return service.endSession(sessionId);
-}
+    ExamAssignment assignment = assignmentRepository
+            .findByExamIdAndEmail(examId, email)
+            .orElseThrow(() -> new RuntimeException("Not assigned"));
 
+    if (assignment.getRole() != ExamRole.PROCTOR && assignment.getRole() != ExamRole.ADMIN) {
+        throw new RuntimeException("Forbidden");
+    }
+
+    return examSessionRepository.findAll()
+            .stream()
+            .filter(s -> examId.equals(s.getExamId()))
+            .toList();
+}
 
 }

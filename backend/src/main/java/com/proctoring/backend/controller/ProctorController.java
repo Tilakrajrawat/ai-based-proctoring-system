@@ -1,26 +1,120 @@
 package com.proctoring.backend.controller;
 
+import com.proctoring.backend.model.session.ExamAssignment;
+import com.proctoring.backend.model.session.ExamRole;
 import com.proctoring.backend.model.session.ExamSession;
-import com.proctoring.backend.service.ExamSessionService;
+import com.proctoring.backend.model.session.SessionStatus;
+import com.proctoring.backend.repository.ExamAssignmentRepository;
+import com.proctoring.backend.repository.ExamSessionRepository;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/proctor/sessions")
+@RequestMapping("/api/proctor")
 public class ProctorController {
 
-    private final ExamSessionService service;
+    private final ExamSessionRepository sessionRepository;
+    private final ExamAssignmentRepository assignmentRepository;
 
-    public ProctorController(ExamSessionService service) {
-        this.service = service;
+    public ProctorController(
+            ExamSessionRepository sessionRepository,
+            ExamAssignmentRepository assignmentRepository
+    ) {
+        this.sessionRepository = sessionRepository;
+        this.assignmentRepository = assignmentRepository;
     }
 
-    @PostMapping("/{sessionId}/resume")
-    public ExamSession resume(@PathVariable String sessionId) {
-        return service.resumeSession(sessionId);
+    @GetMapping("/exams/{examId}/access")
+    public String access(
+            @PathVariable String examId,
+            Authentication authentication
+    ) {
+        String email = authentication.getName();
+
+        ExamAssignment assignment = assignmentRepository
+                .findByExamIdAndEmail(examId, email)
+                .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+        if (assignment.getRole() == ExamRole.PROCTOR || assignment.getRole() == ExamRole.ADMIN) {
+            return "ACCESS_GRANTED";
+        }
+
+        throw new RuntimeException("FORBIDDEN");
     }
 
-    @PostMapping("/{sessionId}/end")
-    public ExamSession end(@PathVariable String sessionId) {
-        return service.endSession(sessionId);
+    @GetMapping("/exams/{examId}/students")
+    public List<ExamSession> students(
+            @PathVariable String examId,
+            Authentication authentication
+    ) {
+        String email = authentication.getName();
+
+        ExamAssignment assignment = assignmentRepository
+                .findByExamIdAndEmail(examId, email)
+                .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+        if (assignment.getRole() != ExamRole.PROCTOR && assignment.getRole() != ExamRole.ADMIN) {
+            throw new RuntimeException("Forbidden");
+        }
+
+        return sessionRepository.findAll()
+                .stream()
+                .filter(s -> examId.equals(s.getExamId()))
+                .toList();
+    }
+
+    @PostMapping("/exams/{examId}/students/{sessionId}/suspend")
+    public String suspend(
+            @PathVariable String examId,
+            @PathVariable String sessionId,
+            Authentication authentication
+    ) {
+        authorize(examId, authentication);
+
+        ExamSession session = sessionRepository.findById(sessionId);
+        session.setStatus(SessionStatus.SUSPENDED);
+        sessionRepository.save(session);
+
+        return "SUSPENDED";
+    }
+
+    @PostMapping("/exams/{examId}/students/{sessionId}/resume")
+    public String resume(
+            @PathVariable String examId,
+            @PathVariable String sessionId,
+            Authentication authentication
+    ) {
+        authorize(examId, authentication);
+
+        ExamSession session = sessionRepository.findById(sessionId);
+        session.setStatus(SessionStatus.ACTIVE);
+        sessionRepository.save(session);
+
+        return "RESUMED";
+    }
+
+    @DeleteMapping("/exams/{examId}/students/{sessionId}")
+    public String remove(
+            @PathVariable String examId,
+            @PathVariable String sessionId,
+            Authentication authentication
+    ) {
+        authorize(examId, authentication);
+        sessionRepository.deleteById(sessionId);
+        return "REMOVED";
+    }
+
+    private void authorize(String examId, Authentication authentication) {
+        String email = authentication.getName();
+
+        ExamAssignment assignment = assignmentRepository
+                .findByExamIdAndEmail(examId, email)
+                .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+        if (assignment.getRole() != ExamRole.PROCTOR && assignment.getRole() != ExamRole.ADMIN) {
+            throw new RuntimeException("Forbidden");
+        }
     }
 }
