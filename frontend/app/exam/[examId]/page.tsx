@@ -9,10 +9,28 @@ export default function StudentExamPage() {
   const { examId } = useParams();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const [access, setAccess] = useState<AccessState>("checking");
   const [showPreview, setShowPreview] = useState(true);
-
+  useEffect(() => {
+    if (access !== "granted") return;
+  
+    const token = localStorage.getItem("token");
+    if (!token) return;
+  
+    fetch(`http://localhost:8080/api/exams/${examId}/start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setSessionId(data.id);
+      });
+  }, [access, examId]);
+  
   useEffect(() => {
     const token = localStorage.getItem("token");
 
@@ -49,7 +67,27 @@ export default function StudentExamPage() {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, [access]);
-
+  useEffect(() => {
+    if (!sessionId) return;
+  
+    const token = localStorage.getItem("token");
+    if (!token) return;
+  
+    const interval = setInterval(() => {
+      fetch(
+        `http://localhost:8080/api/sessions/${sessionId}/heartbeat`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    }, 5000);
+  
+    return () => clearInterval(interval);
+  }, [sessionId]);
+  
   if (access === "checking") return <p>Checking exam access...</p>;
   if (access === "denied") return <p>Access denied</p>;
 
@@ -76,5 +114,6 @@ export default function StudentExamPage() {
 
       {!showPreview && <p>Camera is running</p>}
     </div>
+    
   );
 }

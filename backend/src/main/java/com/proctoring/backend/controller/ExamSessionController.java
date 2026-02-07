@@ -133,5 +133,23 @@ public ExamSession startExam(
     ExamSession session = new ExamSession(email, examId);
     return examSessionRepository.save(session);
 }
+@PostMapping("/sessions/{sessionId}/heartbeat")
+public String heartbeat(
+        @PathVariable String sessionId,
+        Authentication authentication
+) {
+    ExamSession session = examSessionRepository.findById(sessionId);
+
+    if (!session.getStudentId().equals(authentication.getName())) {
+        throw new RuntimeException("Forbidden");
+    }
+
+    session.setLastHeartbeatAt(java.time.Instant.now());
+    session.setUpdatedAt(java.time.Instant.now());
+
+    examSessionRepository.save(session);
+    return "OK";
+}
+
 
 }
