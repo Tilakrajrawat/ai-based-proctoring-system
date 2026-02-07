@@ -10,15 +10,14 @@ import logging
 app = Flask(__name__)
 CORS(app)
 
-# Configure logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize face and eye cascade classifiers
+
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
-# Global variables for tracking
 session_data = {}
 lock = threading.Lock()
 
@@ -39,8 +38,7 @@ class GazeTracker:
         
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-        
-        # No face detected
+
         if len(faces) == 0:
             if self.no_face_start is None:
                 self.no_face_start = current_time
@@ -58,7 +56,7 @@ class GazeTracker:
         else:
             self.no_face_start = None
             
-        # Multiple faces detected
+    
         if len(faces) > 1:
             if self.multiple_faces_start is None:
                 self.multiple_faces_start = current_time
@@ -76,18 +74,18 @@ class GazeTracker:
         else:
             self.multiple_faces_start = None
         
-        # Analyze gaze for each face
+ 
         looking_at_screen = False
         for (x, y, w, h) in faces:
             roi_gray = gray[y:y+h, x:x+w]
             eyes = eye_cascade.detectMultiScale(roi_gray)
             
-            # If we detect at least 2 eyes, assume looking at screen
+           
             if len(eyes) >= 2:
                 looking_at_screen = True
                 break
         
-        # Look away detection
+        
         if not looking_at_screen and len(faces) == 1:
             if self.look_away_start is None:
                 self.look_away_start = current_time
@@ -108,7 +106,7 @@ class GazeTracker:
         return incidents, len(faces), looking_at_screen
     
     def _should_report_incident(self, incident_type, current_time):
-        # Rate limiting: don't report same incident type within 10 seconds
+
         if incident_type in self.last_incident_time:
             if current_time - self.last_incident_time[incident_type] < 10:
                 return False
@@ -124,15 +122,12 @@ def analyze_frame():
         
         if not session_id:
             return jsonify({'error': 'session_id is required'}), 400
-        
-        # Get or create tracker for this session
+   
         with lock:
             if session_id not in session_data:
                 session_data[session_id] = GazeTracker(session_id)
             tracker = session_data[session_id]
-        
-        # For now, simulate frame analysis
-        # In real implementation, you'd process actual image data
+a
         incidents, face_count, looking_at_screen = tracker.analyze_frame(None)
         
         return jsonify({
@@ -156,7 +151,7 @@ def heartbeat():
         if not session_id:
             return jsonify({'error': 'session_id is required'}), 400
         
-        # Update session heartbeat
+       
         with lock:
             if session_id in session_data:
                 session_data[session_id].last_heartbeat = time.time()
@@ -176,7 +171,7 @@ def end_session():
         if not session_id:
             return jsonify({'error': 'session_id is required'}), 400
         
-        # Clean up session data
+    
         with lock:
             if session_id in session_data:
                 del session_data[session_id]
