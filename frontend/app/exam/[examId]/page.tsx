@@ -9,28 +9,27 @@ export default function StudentExamPage() {
   const { examId } = useParams();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
 
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [suspended, setSuspended] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [access, setAccess] = useState<AccessState>("checking");
   const [showPreview, setShowPreview] = useState(true);
+
   useEffect(() => {
     if (access !== "granted") return;
-  
+
     const token = localStorage.getItem("token");
     if (!token) return;
-  
+
     fetch(`http://localhost:8080/api/exams/${examId}/start`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setSessionId(data.id);
-      });
+      .then(res => res.json())
+      .then(data => setSessionId(data.id));
   }, [access, examId]);
-  
+
   useEffect(() => {
     const token = localStorage.getItem("token");
 
@@ -42,7 +41,7 @@ export default function StudentExamPage() {
     fetch(`http://localhost:8080/api/exams/${examId}/access`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => {
+      .then(res => {
         if (!res.ok) throw new Error();
         Promise.resolve().then(() => setAccess("granted"));
       })
@@ -52,50 +51,65 @@ export default function StudentExamPage() {
   }, [examId]);
 
   useEffect(() => {
-    if (access !== "granted") return;
+    if (access !== "granted" || ended) return;
 
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: false })
-      .then((stream) => {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => {
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
       });
 
     return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach(t => t.stop());
     };
-  }, [access]);
+  }, [access, ended]);
+
   useEffect(() => {
-    if (!sessionId) return;
-  
+    if (!sessionId || ended) return;
+
     const token = localStorage.getItem("token");
     if (!token) return;
-  
+
     const interval = setInterval(() => {
-      fetch(
-        `http://localhost:8080/api/sessions/${sessionId}/heartbeat`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      fetch(`http://localhost:8080/api/sessions/${sessionId}/heartbeat`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
     }, 5000);
-  
+
+    return () => clearInterval(interval);
+  }, [sessionId, ended]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const interval = setInterval(() => {
+      fetch(`http://localhost:8080/api/sessions/${sessionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "SUSPENDED") setSuspended(true);
+          if (data.status === "ENDED") setEnded(true);
+        });
+    }, 3000);
+
     return () => clearInterval(interval);
   }, [sessionId]);
-  
+
   if (access === "checking") return <p>Checking exam access...</p>;
   if (access === "denied") return <p>Access denied</p>;
+  if (suspended) return <p>Exam suspended due to suspicious activity</p>;
+  if (ended) return <p>Exam has ended</p>;
 
   return (
     <div style={{ padding: 20 }}>
       <h2>Exam ID: {examId}</h2>
 
-      <button onClick={() => setShowPreview((p) => !p)}>
+      <button onClick={() => setShowPreview(p => !p)}>
         {showPreview ? "Hide Camera Preview" : "Show Camera Preview"}
       </button>
 
@@ -105,15 +119,11 @@ export default function StudentExamPage() {
           autoPlay
           muted
           playsInline
-          style={{
-            width: 300,
-            display: showPreview ? "block" : "none",
-          }}
+          style={{ width: 300, display: showPreview ? "block" : "none" }}
         />
       </div>
 
       {!showPreview && <p>Camera is running</p>}
     </div>
-    
   );
 }

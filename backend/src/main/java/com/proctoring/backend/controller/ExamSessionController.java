@@ -9,6 +9,7 @@ import com.proctoring.backend.repository.ExamAssignmentRepository;
 import com.proctoring.backend.repository.ExamSessionRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.proctoring.backend.model.session.SessionStatus;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -138,17 +139,33 @@ public String heartbeat(
         @PathVariable String sessionId,
         Authentication authentication
 ) {
-    ExamSession session = examSessionRepository.findById(sessionId);
+   ExamSession session = examSessionRepository.findById(sessionId);
 
+if (!session.getStudentId().equals(authentication.getName())) {
+    throw new RuntimeException("Forbidden");
+}
+
+if (session.getStatus() == SessionStatus.SUSPENDED) {
+    throw new RuntimeException("Session suspended");
+}
+
+session.setLastHeartbeatAt(java.time.Instant.now());
+session.setUpdatedAt(java.time.Instant.now());
+
+examSessionRepository.save(session);
+return "OK";
+
+}
+@GetMapping("/sessions/{sessionId}")
+public ExamSession getSession(@PathVariable String sessionId, Authentication authentication) {
+    ExamSession session = examSessionRepository.findById(sessionId);
+    if (session == null) {
+        throw new RuntimeException("Not found");
+    }
     if (!session.getStudentId().equals(authentication.getName())) {
         throw new RuntimeException("Forbidden");
     }
-
-    session.setLastHeartbeatAt(java.time.Instant.now());
-    session.setUpdatedAt(java.time.Instant.now());
-
-    examSessionRepository.save(session);
-    return "OK";
+    return session;
 }
 
 

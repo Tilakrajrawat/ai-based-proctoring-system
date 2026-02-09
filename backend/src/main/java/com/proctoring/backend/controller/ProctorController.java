@@ -8,6 +8,8 @@ import com.proctoring.backend.repository.ExamAssignmentRepository;
 import com.proctoring.backend.repository.ExamSessionRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.proctoring.backend.model.incident.Incident;
+import com.proctoring.backend.repository.IncidentRepository;
 
 import java.util.List;
 
@@ -17,14 +19,17 @@ public class ProctorController {
 
     private final ExamSessionRepository sessionRepository;
     private final ExamAssignmentRepository assignmentRepository;
+    private final IncidentRepository incidentRepository;
 
     public ProctorController(
-            ExamSessionRepository sessionRepository,
-            ExamAssignmentRepository assignmentRepository
-    ) {
-        this.sessionRepository = sessionRepository;
-        this.assignmentRepository = assignmentRepository;
-    }
+        ExamSessionRepository sessionRepository,
+        ExamAssignmentRepository assignmentRepository,
+        IncidentRepository incidentRepository
+) {
+    this.sessionRepository = sessionRepository;
+    this.assignmentRepository = assignmentRepository;
+    this.incidentRepository = incidentRepository;
+}
 
     @GetMapping("/exams/{examId}/access")
     public String access(
@@ -117,4 +122,30 @@ public class ProctorController {
             throw new RuntimeException("Forbidden");
         }
     }
+    @GetMapping("/sessions/{sessionId}/incidents")
+public List<Incident> getIncidents(
+        @PathVariable String sessionId,
+        Authentication authentication
+) {
+    ExamSession session = sessionRepository.findById(sessionId);
+    if (session == null) {
+        throw new RuntimeException("Session not found");
+    }
+
+    String examId = session.getExamId();
+
+    ExamAssignment assignment = assignmentRepository
+            .findByExamIdAndEmail(examId, authentication.getName())
+            .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+    if (assignment.getRole() != ExamRole.PROCTOR &&
+        assignment.getRole() != ExamRole.ADMIN) {
+        throw new RuntimeException("Forbidden");
+    }
+
+    return incidentRepository.findBySessionId(sessionId);
 }
+  
+
+}
+
