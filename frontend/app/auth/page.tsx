@@ -22,7 +22,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="relative w-full max-w-md">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-pink-500 rounded-xl blur opacity-30" />
+        <div className="absolute -inset-0.5 bg-linear-to-r from-indigo-500 to-pink-500 rounded-xl blur opacity-30" />
 
         <div className="relative bg-black/70 backdrop-blur-xl border border-white/10 rounded-xl p-8 shadow-xl">
           <h1 className="text-2xl font-semibold text-white mb-2">

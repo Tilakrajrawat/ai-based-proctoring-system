@@ -145,7 +145,26 @@ public List<Incident> getIncidents(
 
     return incidentRepository.findBySessionId(sessionId);
 }
-  
+ @PostMapping("/exams/{examId}/students/{sessionId}/submit")
+public String forceSubmit(
+        @PathVariable String examId,
+        @PathVariable String sessionId,
+        Authentication authentication
+) {
+    authorize(examId, authentication);
+
+    ExamSession session = sessionRepository.findById(sessionId);
+    if (session == null) {
+        throw new RuntimeException("Session not found");
+    }
+
+    session.setStatus(SessionStatus.SUBMITTED);
+    session.setEndedAt(java.time.Instant.now());
+    session.setUpdatedAt(java.time.Instant.now());
+
+    sessionRepository.save(session);
+    return "SUBMITTED";
+} 
 
 }
 

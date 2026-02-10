@@ -11,15 +11,24 @@ public interface ExamAssignmentRepository
         extends JpaRepository<ExamAssignment, Long> {
 
     Optional<ExamAssignment> findByExamIdAndEmail(
-        String examId,
-        String email
+            String examId,
+            String email
     );
 
     List<ExamAssignment> findByEmail(String email);
 
-    boolean existsByExamIdAndEmailAndRole(
-        String examId,
-        String email,
-        ExamRole role
+    List<ExamAssignment> findByExamId(String examId);
+
+    boolean existsByExamIdAndEmail(
+            String examId,
+            String email
     );
+
+    boolean existsByExamIdAndEmailAndRole(
+            String examId,
+            String email,
+            ExamRole role
+    );
+
+    void deleteByExamIdAndEmail(String examId, String email);
 }

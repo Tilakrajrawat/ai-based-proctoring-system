@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:8080";
+const API = "http://localhost:8080/api";
 
 export function useAuth() {
   const [email, setEmail] = useState("");
@@ -35,6 +35,7 @@ export function useAuth() {
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("role", res.data.role);
+      localStorage.setItem("email", email);
 
       return res.data.role;
     } catch {
