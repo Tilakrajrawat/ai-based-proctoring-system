@@ -2,44 +2,60 @@ import { Server } from "socket.io";
 
 const io = new Server(3001, {
   cors: {
-    origin: "*",
+    origin: "*", // In production, replace with your frontend URL
   },
 });
 
 console.log("WebRTC signaling server running on port 3001");
 
-io.on("connection", socket => {
-  console.log("Connected:", socket.id);
+io.on("connection", (socket) => {
+  // Use a temporary variable for logging
+  const transportId = socket.id;
 
   socket.on("join", ({ sessionId, role }) => {
-    socket.join(sessionId);
-    socket.sessionId = sessionId;
-    socket.role = role;
+  socket.join(sessionId);
+  socket.sessionId = sessionId;
+  socket.role = role;
 
-    console.log(`${role} joined session ${sessionId}`);
+  // Get the number of people in the room
+  const clients = io.sockets.adapter.rooms.get(sessionId);
+  const numClients = clients ? clients.size : 0;
 
-    const room = io.sockets.adapter.rooms.get(sessionId);
+  console.log(`${role} joined. Total in room: ${numClients}`);
 
-    if (room && room.size >= 2) {
-      // BOTH student + proctor are now present
-      io.to(sessionId).emit("ready");
-      console.log(`Session ${sessionId} is ready`);
+  // TRIGGER LOGIC:
+  // If a proctor joins, tell whoever is there (the student) to start.
+  if (role === "proctor") {
+    socket.to(sessionId).emit("proctor-ready");
+  }
+
+  // NEW: If a student joins and the proctor is ALREADY there, 
+  // tell the student to start immediately.
+  if (role === "student" && numClients > 1) {
+    socket.emit("proctor-ready"); 
+  }
+});
+
+  socket.on("offer", ({ sessionId, offer }) => {
+    // Basic validation: ensures offer exists before broadcasting
+    if (offer) {
+      socket.to(sessionId).emit("offer", offer);
     }
   });
 
-  socket.on("offer", ({ sessionId, offer }) => {
-    socket.to(sessionId).emit("offer", offer);
-  });
-
   socket.on("answer", ({ sessionId, answer }) => {
-    socket.to(sessionId).emit("answer", answer);
+    if (answer) {
+      socket.to(sessionId).emit("answer", answer);
+    }
   });
 
   socket.on("ice", ({ sessionId, candidate }) => {
-    socket.to(sessionId).emit("ice", candidate);
+    if (candidate) {
+      socket.to(sessionId).emit("ice", candidate);
+    }
   });
 
   socket.on("disconnect", () => {
-    console.log("Disconnected:", socket.id);
+    console.log(`User disconnected: ${transportId}`);
   });
 });

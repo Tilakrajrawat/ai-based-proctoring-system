@@ -25,17 +25,17 @@ export function useProctorWebRTC(
 
     pcRef.current = pc;
 
-    pc.ontrack = e => {
+    pc.ontrack = (event: RTCTrackEvent) => {
       if (videoRef.current) {
-        videoRef.current.srcObject = e.streams[0];
+        videoRef.current.srcObject = event.streams[0];
       }
     };
 
-    pc.onicecandidate = e => {
-      if (e.candidate) {
+    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+      if (event.candidate) {
         socket.emit("ice", {
           sessionId,
-          candidate: e.candidate,
+          candidate: event.candidate.toJSON(),
         });
       }
     };
@@ -46,6 +46,7 @@ export function useProctorWebRTC(
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+
         socket.emit("answer", { sessionId, answer });
       }
     );

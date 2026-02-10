@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useStudentWebRTC } from "./useStudentWebRTC";
 
 type AccessState = "checking" | "granted" | "denied" | "submitted";
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
@@ -13,7 +14,8 @@ export default function StudentExamPage() {
   const router = useRouter();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  // FIX: Explicitly typing the state prevents the 'never' error
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
@@ -26,232 +28,164 @@ export default function StudentExamPage() {
   const [status, setStatus] = useState<SessionStatus>("ACTIVE");
   const [showPreview, setShowPreview] = useState(true);
 
-  /* ---------------- ACCESS CHECK ---------------- */
+  // Initialize WebRTC logic
+  useStudentWebRTC({ sessionId, stream });
 
+  /* ---------------- HELPERS ---------------- */
+  const stopStream = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+  }, [stream]);
+
+  /* ---------------- ACCESS CHECK ---------------- */
   useEffect(() => {
     if (!examId) return;
-
-    const run = async () => {
+    const checkAccess = async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) throw new Error();
-
         const res = await fetch(`${API}/api/exams/${examId}/access`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) throw new Error();
         setAccess("granted");
       } catch {
         setAccess("denied");
       }
     };
-
-    run();
+    checkAccess();
   }, [examId]);
 
   /* ---------------- START SESSION ---------------- */
-
   useEffect(() => {
     if (access !== "granted" || startedRef.current || !examId) return;
-
-    const run = async () => {
+    const startSession = async () => {
       const token = localStorage.getItem("token");
-      if (!token) return;
-
       startedRef.current = true;
-
       const res = await fetch(`${API}/api/exams/${examId}/start`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
         setAccess("submitted");
         return;
       }
-
       const data = await res.json();
       setSessionId(data.id);
     };
-
-    run();
+    startSession();
   }, [access, examId]);
 
-  /* ---------------- CAMERA (NEVER STOP) ---------------- */
-
+  /* ---------------- CAMERA ---------------- */
   useEffect(() => {
-    if (access !== "granted") return;
-    if (streamRef.current) return;
+    if (access !== "granted" || stream) return;
 
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: false })
-      .then(stream => {
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+      .then((s) => {
+        setStream(s);
+        if (videoRef.current) videoRef.current.srcObject = s;
       })
-      .catch(() => {
-        setStatus("SUSPENDED");
-      });
-  }, [access]);
+      .catch(() => setStatus("SUSPENDED"));
 
-  /* ---------------- HEARTBEAT (TOLERANT) ---------------- */
+    return () => {
+      // Logic handled in specific cleanup or stopStream
+    };
+  }, [access, stream]);
 
+  /* ---------------- HEARTBEAT ---------------- */
   useEffect(() => {
     if (!sessionId || status !== "ACTIVE") return;
 
     heartbeatRef.current = setInterval(async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
-
-        const res = await fetch(
-          `${API}/api/sessions/${sessionId}/heartbeat`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
+        const res = await fetch(`${API}/api/sessions/${sessionId}/heartbeat`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) throw new Error();
         heartbeatFails.current = 0;
       } catch {
         heartbeatFails.current += 1;
-        if (heartbeatFails.current >= 3) {
-          setStatus("SUSPENDED");
-        }
+        if (heartbeatFails.current >= 3) setStatus("SUSPENDED");
       }
     }, 5000);
 
     return () => {
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-        heartbeatRef.current = null;
-      }
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
   }, [sessionId, status]);
 
-  /* ---------------- POLL SESSION (SAFE JSON) ---------------- */
-
+  /* ---------------- POLL STATUS ---------------- */
   useEffect(() => {
     if (!sessionId) return;
-
     pollRef.current = setInterval(async () => {
       const token = localStorage.getItem("token");
-      if (!token) return;
-
       const res = await fetch(`${API}/api/sessions/${sessionId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!res.ok) return;
-
-      const text = await res.text();
-      if (!text) return;
-
-      const data = JSON.parse(text);
-      if (data.status) setStatus(data.status);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status) setStatus(data.status);
+      }
     }, 3000);
 
     return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
+      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [sessionId]);
 
-  /* ---------------- CLEANUP ON EXIT ---------------- */
+  /* ---------------- UI LOGIC ---------------- */
+  const handleEndExam = async () => {
+    if (!sessionId) return;
+    const token = localStorage.getItem("token");
+    await fetch(`${API}/api/sessions/${sessionId}/end`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    stopStream();
+    setStatus("SUBMITTED");
+    router.replace("/dashboard");
+  };
 
-  useEffect(() => {
-    return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
-
-  /* ---------------- TERMINAL STATES ---------------- */
-
-  if (access === "checking") return <p>Checking exam access…</p>;
-  if (access === "denied") return <p>Access denied</p>;
-  if (access === "submitted") return <p>Exam already submitted</p>;
-  if (status === "ENDED" || status === "SUBMITTED")
-    return <p>Exam submitted</p>;
-
-  /* ---------------- UI ---------------- */
+  if (access === "checking") return <div>Loading...</div>;
+  if (access === "denied") return <div>Access Denied</div>;
+  if (status === "SUBMITTED" || access === "submitted") return <div>Exam Completed</div>;
 
   return (
-    <div style={{ padding: 24, position: "relative" }}>
-      <h2>Exam ID: {examId}</h2>
-
-      <button onClick={() => setShowPreview(v => !v)}>
-        {showPreview ? "Hide Camera Preview" : "Show Camera Preview"}
-      </button>
-
-      <div style={{ marginTop: 16 }}>
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          style={{ width: 320, display: showPreview ? "block" : "none" }}
-        />
+    <div style={{ padding: 20 }}>
+      <h1>Exam: {examId}</h1>
+      
+      <div style={{ marginBottom: 10 }}>
+        <button onClick={() => setShowPreview(!showPreview)}>
+          {showPreview ? "Hide Preview" : "Show Preview"}
+        </button>
       </div>
 
-      {!showPreview && <p>Camera is running</p>}
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        style={{ 
+          width: "300px", 
+          display: showPreview ? "block" : "none",
+          border: "2px solid #ccc",
+          borderRadius: "8px"
+        }}
+      />
 
       {status === "SUSPENDED" && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.85)",
-            color: "#fff",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-        >
-          <h2>Exam Suspended</h2>
-          <p>Please wait until the proctor resumes your exam.</p>
-          <p style={{ fontSize: 12, opacity: 0.7 }}>
-            Camera is still active
-          </p>
+        <div style={{ color: "red", fontWeight: "bold", padding: "10px", border: "1px solid red" }}>
+          EXAM SUSPENDED - Contact Proctor
         </div>
       )}
 
-      <button
-        onClick={async () => {
-          if (!sessionId) return;
-
-          const token = localStorage.getItem("token");
-          if (!token) return;
-
-          await fetch(`${API}/api/sessions/${sessionId}/end`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
-          setSessionId(null);
-          setStatus("SUBMITTED");
-          router.replace("/dashboard");
-        }}
-        disabled={status === "SUSPENDED"}
-        style={{
-          background: "#e53935",
-          color: "white",
-          padding: "10px 16px",
-          borderRadius: 6,
-          marginTop: 16,
-          opacity: status === "SUSPENDED" ? 0.5 : 1,
-        }}
+      <button 
+        onClick={handleEndExam} 
+        style={{ marginTop: 20, padding: "10px 20px", background: "red", color: "white", borderRadius: "4px" }}
       >
         End Exam
       </button>
