@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 
@@ -17,58 +17,56 @@ const API = "http://localhost:8080";
 
 export default function AttendancePage() {
   const params = useParams();
-  const examId =
-    typeof params.examId === "string" ? params.examId : null;
-
+  const examId = typeof params.examId === "string" ? params.examId : null;
   const router = useRouter();
 
   const [data, setData] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!examId) return;
 
-    const load = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          setError("Unauthorized");
-          return;
-        }
-
-        const res = await axios.get<Attendance[]>(
-          `${API}/api/exams/${examId}/attendance`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        setData(res.data);
-      } catch {
-        setError("Failed to load attendance");
-      } finally {
-        setLoading(false);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Unauthorized");
+        return;
       }
-    };
 
-    load();
+      const res = await axios.get<Attendance[]>(
+        `${API}/api/exams/${examId}/attendance`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setData(res.data);
+      setError("");
+    } catch {
+      setError("Failed to load attendance");
+    } finally {
+      setLoading(false);
+    }
   }, [examId]);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   if (!examId) return <p style={{ padding: 24 }}>Invalid exam</p>;
   if (loading) return <p style={{ padding: 24 }}>Loading…</p>;
   if (error) return <p style={{ padding: 24, color: "red" }}>{error}</p>;
 
-  const normalized = data.map(a => {
-    const attended =
+  const normalized = data.map(a => ({
+    ...a,
+    present:
       a.present ||
       a.status === "ACTIVE" ||
       a.status === "SUSPENDED" ||
       a.status === "ENDED" ||
-      a.status === "SUBMITTED";
-
-    return { ...a, present: attended };
-  });
+      a.status === "SUBMITTED",
+  }));
 
   const total = normalized.length;
   const present = normalized.filter(d => d.present).length;
@@ -78,25 +76,12 @@ export default function AttendancePage() {
     <div style={{ padding: 24 }}>
       <button onClick={() => router.back()}>← Back</button>
 
-      <h1 style={{ fontSize: 22, marginBottom: 12 }}>
-        Attendance
-      </h1>
+      <h1 style={{ fontSize: 22, marginBottom: 12 }}>Attendance</h1>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 24,
-          marginBottom: 20,
-          fontWeight: 500,
-        }}
-      >
+      <div style={{ display: "flex", gap: 24, marginBottom: 20 }}>
         <div>Total: {total}</div>
-        <div style={{ color: "green" }}>
-          Present: {present}
-        </div>
-        <div style={{ color: "red" }}>
-          Absent: {absent}
-        </div>
+        <div style={{ color: "green" }}>Present: {present}</div>
+        <div style={{ color: "red" }}>Absent: {absent}</div>
       </div>
 
       <table border={1} cellPadding={8}>
@@ -109,16 +94,14 @@ export default function AttendancePage() {
           </tr>
         </thead>
         <tbody>
-          {normalized.map((a, index) => (
-            <tr key={`${a.studentEmail}-${index}`}>
+          {normalized.map((a, i) => (
+            <tr key={`${a.studentEmail}-${i}`}>
               <td>{a.studentEmail}</td>
               <td>{a.present ? "Yes" : "No"}</td>
               <td>{a.status ?? "-"}</td>
               <td>
                 {a.lastHeartbeatAt
-                  ? new Date(
-                      a.lastHeartbeatAt
-                    ).toLocaleTimeString()
+                  ? new Date(a.lastHeartbeatAt).toLocaleTimeString()
                   : "-"}
               </td>
             </tr>

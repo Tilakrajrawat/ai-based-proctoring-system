@@ -24,20 +24,25 @@ export default function DashboardPage() {
       ? localStorage.getItem("token")
       : null;
 
-  useEffect(() => {
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-
-    axios
-      .get<MyExam[]>(`${API}/api/my-exams`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then(res => setExams(res.data))
-      .finally(() => setLoading(false));
-  }, [router, token]);
-
+      useEffect(() => {
+        if (!token) {
+          router.replace("/login");
+          return;
+        }
+      
+        const load = async () => {
+          const res = await axios.get<MyExam[]>(
+            `${API}/api/my-exams`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setExams(res.data);
+          setLoading(false);
+        };
+      
+        load();
+        const interval = setInterval(load, 5000);
+        return () => clearInterval(interval);
+      }, [router, token]);
   const createExam = async () => {
     if (!token) return;
 

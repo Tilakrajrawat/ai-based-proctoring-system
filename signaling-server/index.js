@@ -12,29 +12,25 @@ io.on("connection", (socket) => {
   // Use a temporary variable for logging
   const transportId = socket.id;
 
-  socket.on("join", ({ sessionId, role }) => {
-  socket.join(sessionId);
-  socket.sessionId = sessionId;
-  socket.role = role;
-
-  // Get the number of people in the room
-  const clients = io.sockets.adapter.rooms.get(sessionId);
-  const numClients = clients ? clients.size : 0;
-
-  console.log(`${role} joined. Total in room: ${numClients}`);
-
-  // TRIGGER LOGIC:
-  // If a proctor joins, tell whoever is there (the student) to start.
-  if (role === "proctor") {
-    socket.to(sessionId).emit("proctor-ready");
-  }
-
-  // NEW: If a student joins and the proctor is ALREADY there, 
-  // tell the student to start immediately.
-  if (role === "student" && numClients > 1) {
-    socket.emit("proctor-ready"); 
-  }
-});
+  socket.on("join", ({ roomId }) => {
+    socket.join(roomId);
+  });
+  
+  socket.on("offer", ({ roomId, offer }) => {
+    socket.to(roomId).emit("offer", offer);
+  });
+  
+  socket.on("answer", ({ roomId, answer }) => {
+    socket.to(roomId).emit("answer", answer);
+  });
+  
+  socket.on("ice", ({ roomId, candidate }) => {
+    socket.to(roomId).emit("ice", candidate);
+  });
+  
+  socket.on("request-offer", ({ roomId }) => {
+    socket.to(roomId).emit("request-offer");
+  });
 
   socket.on("offer", ({ sessionId, offer }) => {
     // Basic validation: ensures offer exists before broadcasting

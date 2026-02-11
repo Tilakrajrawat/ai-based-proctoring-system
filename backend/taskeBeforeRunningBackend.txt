@@ -1,0 +1,5 @@
+//checking if no process is running on backend port
+ netstat -ano | findstr :8080 
+
+// kill the running task on backend port
+taskkill /PID 5572 /F 

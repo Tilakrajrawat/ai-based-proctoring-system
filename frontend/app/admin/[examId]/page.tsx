@@ -26,20 +26,25 @@ export default function AdminExamPage() {
     typeof window !== "undefined"
       ? localStorage.getItem("token")
       : null;
-
-  useEffect(() => {
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-
-    axios
-      .get(`${API}/api/exams/${examId}/assignments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then(res => setAssignments(res.data))
-      .finally(() => setLoading(false));
-  }, [examId, router, token]);
+      useEffect(() => {
+        if (!token) {
+          router.replace("/login");
+          return;
+        }
+      
+        const load = async () => {
+          const res = await axios.get(
+            `${API}/api/exams/${examId}/assignments`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setAssignments(res.data);
+          setLoading(false);
+        };
+      
+        load();
+        const interval = setInterval(load, 5000);
+        return () => clearInterval(interval);
+      }, [examId, router, token]);
 
   const assignUser = async () => {
     if (!token || !email) return;

@@ -29,7 +29,12 @@ export default function StudentExamPage() {
   const [showPreview, setShowPreview] = useState(true);
 
   // Initialize WebRTC logic
-  useStudentWebRTC({ sessionId, stream });
+  useStudentWebRTC({
+    examId,
+    sessionId,
+    stream,
+  });
+  
 
   /* ---------------- HELPERS ---------------- */
   const stopStream = useCallback(() => {

@@ -244,6 +244,7 @@ return students.stream().map(student -> {
                     examId.equals(s.getExamId()) &&  
                     student.getEmail().equals(s.getStudentId())  
             )  
+            .sorted((s1, s2) -> s2.getStartedAt().compareTo(s1.getStartedAt()))
             .findFirst()  
             .orElse(null);  
 
