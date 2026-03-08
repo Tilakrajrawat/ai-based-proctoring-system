@@ -38,6 +38,12 @@ def decode_frame(encoded: str) -> np.ndarray:
     return frame
 
 
+def preprocess_frame(frame: np.ndarray) -> np.ndarray:
+    """Normalize frame before running detectors to improve consistency."""
+    denoised = cv2.GaussianBlur(frame, (3, 3), 0)
+    return cv2.convertScaleAbs(denoised, alpha=1.05, beta=2)
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
@@ -45,20 +51,20 @@ def health() -> Dict[str, str]:
 
 @app.post("/detect_objects", response_model=DetectionResponse)
 def detect_objects(request: FrameRequest) -> DetectionResponse:
-    frame = decode_frame(request.frame)
+    frame = preprocess_frame(decode_frame(request.frame))
     return DetectionResponse(incidents=object_detector.detect(frame))
 
 
 @app.post("/detect_gaze", response_model=DetectionResponse)
 def detect_gaze(request: FrameRequest) -> DetectionResponse:
-    frame = decode_frame(request.frame)
+    frame = preprocess_frame(decode_frame(request.frame))
     return DetectionResponse(incidents=gaze_detector.detect(frame))
 
 
 @app.post("/analyze_frame", response_model=DetectionResponse)
 def analyze_frame(request: FrameRequest) -> DetectionResponse:
     try:
-        frame = decode_frame(request.frame)
+        frame = preprocess_frame(decode_frame(request.frame))
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

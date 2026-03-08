@@ -69,6 +69,7 @@ public class IncidentService {
                 ? incident.getSeverity()
                 : severityResolver.resolveSeverity(incident);
         incident.setSeverity(severity);
+        incidentRepository.save(incident);
 
         session.setTotalSeverity(session.getTotalSeverity() + severity);
         session.setUpdatedAt(Instant.now());

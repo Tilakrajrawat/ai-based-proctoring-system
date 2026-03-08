@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../../lib/api";
+import { getAuthToken } from "../../../lib/auth";
 
 type ExamRole = "ADMIN" | "PROCTOR" | "STUDENT";
 
@@ -11,7 +12,6 @@ type Assignment = {
   role: ExamRole;
 };
 
-const API = "http://localhost:8080";
 
 export default function AdminExamPage() {
   const { examId } = useParams<{ examId: string }>();
@@ -22,21 +22,14 @@ export default function AdminExamPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("token")
-      : null;
-      useEffect(() => {
-        if (!token) {
+  useEffect(() => {
+        if (!getAuthToken()) {
           router.replace("/login");
           return;
         }
       
         const load = async () => {
-          const res = await axios.get(
-            `${API}/api/exams/${examId}/assignments`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
+          const res = await api.get(`/api/exams/${examId}/assignments`);
           setAssignments(res.data);
           setLoading(false);
         };
@@ -44,16 +37,12 @@ export default function AdminExamPage() {
         load();
         const interval = setInterval(load, 5000);
         return () => clearInterval(interval);
-      }, [examId, router, token]);
+      }, [examId, router]);
 
   const assignUser = async () => {
-    if (!token || !email) return;
+    if (!email) return;
 
-    await axios.post(
-      `${API}/api/exams/${examId}/assign`,
-      { email, role },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    await api.post(`/api/exams/${examId}/assign`, { email, role });
 
     setAssignments(prev => [...prev, { email, role }]);
     setEmail("");
@@ -61,16 +50,9 @@ export default function AdminExamPage() {
   };
 
   const updateRole = async (targetEmail: string, newRole: ExamRole) => {
-    if (!token) return;
-
-    await axios.put(
-      `${API}/api/exams/${examId}/assignments/${targetEmail}/role`,
-      null,
-      {
-        params: { role: newRole },
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+    await api.put(`/api/exams/${examId}/assignments/${targetEmail}/role`, null, {
+      params: { role: newRole },
+    });
 
     setAssignments(prev =>
       prev.map(a =>
@@ -80,12 +62,7 @@ export default function AdminExamPage() {
   };
 
   const removeUser = async (targetEmail: string) => {
-    if (!token) return;
-
-    await axios.delete(
-      `${API}/api/exams/${examId}/assignments/${targetEmail}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    await api.delete(`/api/exams/${examId}/assignments/${targetEmail}`);
 
     setAssignments(prev =>
       prev.filter(a => a.email !== targetEmail)

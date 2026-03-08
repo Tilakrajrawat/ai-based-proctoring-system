@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useStudentWebRTC } from "./useStudentWebRTC";
+import { getAuthHeaders } from "../../../lib/auth";
 
 type AccessState = "checking" | "granted" | "denied" | "submitted";
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
@@ -34,13 +35,9 @@ export default function StudentExamPage() {
   const reportIncident = useCallback(
     async (type: "TAB_SWITCH" | "WINDOW_BLUR" | "FULLSCREEN_EXIT") => {
       if (!sessionId) return;
-      const token = localStorage.getItem("token");
       await fetch(`${API}/api/incidents`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ sessionId, type, confidence: 0.95 }),
       });
     },
@@ -65,13 +62,9 @@ export default function StudentExamPage() {
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const frame = canvas.toDataURL("image/jpeg", 0.7);
 
-    const token = localStorage.getItem("token");
     await fetch(`${API}/api/frames`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ sessionId, frame }),
     });
   }, [sessionId, status]);
@@ -87,9 +80,8 @@ export default function StudentExamPage() {
     if (!examId) return;
     const checkAccess = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${API}/api/exams/${examId}/access`, {
-          headers: { Authorization: `Bearer ${token}` },
+          const res = await fetch(`${API}/api/exams/${examId}/access`, {
+          headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error();
         setAccess("granted");
@@ -103,11 +95,10 @@ export default function StudentExamPage() {
   useEffect(() => {
     if (access !== "granted" || startedRef.current || !examId) return;
     const startSession = async () => {
-      const token = localStorage.getItem("token");
       startedRef.current = true;
       const res = await fetch(`${API}/api/exams/${examId}/start`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       if (!res.ok) {
         setAccess("submitted");
@@ -135,10 +126,9 @@ export default function StudentExamPage() {
     if (!sessionId || status !== "ACTIVE") return;
     heartbeatRef.current = setInterval(async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${API}/api/sessions/${sessionId}/heartbeat`, {
+          const res = await fetch(`${API}/api/sessions/${sessionId}/heartbeat`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error();
         heartbeatFails.current = 0;
@@ -156,9 +146,8 @@ export default function StudentExamPage() {
   useEffect(() => {
     if (!sessionId) return;
     pollRef.current = setInterval(async () => {
-      const token = localStorage.getItem("token");
       const res = await fetch(`${API}/api/sessions/${sessionId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -206,10 +195,9 @@ export default function StudentExamPage() {
 
   const handleEndExam = async () => {
     if (!sessionId) return;
-    const token = localStorage.getItem("token");
     await fetch(`${API}/api/sessions/${sessionId}/end`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getAuthHeaders(),
     });
     stopStream();
     setStatus("SUBMITTED");

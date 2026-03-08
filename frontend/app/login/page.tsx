@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import axios from "axios";
+import api from "../../lib/api";
+import { setAuthToken } from "../../lib/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await axios.post("http://localhost:8080/api/auth/request-otp", { email });
+      await api.post("/api/auth/request-otp", { email });
       setStep("otp");
     } catch {
       setError("Failed to request OTP");
@@ -29,11 +30,11 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await axios.post("http://localhost:8080/api/auth/verify-otp", {
+      const res = await api.post("/api/auth/verify-otp", {
         email,
         otp,
       });
-      document.cookie = `token=${res.data.token}; path=/`;
+      setAuthToken(res.data.token);
       window.location.href = "/dashboard";
     } catch {
       setError("Invalid OTP");
@@ -45,9 +46,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
       <div className="w-full max-w-md p-6 rounded-xl bg-gray-900 shadow-lg">
-        <h1 className="text-2xl font-semibold mb-4">
-          AI Proctoring Login
-        </h1>
+        <h1 className="text-2xl font-semibold mb-4">AI Proctoring Login</h1>
 
         {step === "email" && (
           <>

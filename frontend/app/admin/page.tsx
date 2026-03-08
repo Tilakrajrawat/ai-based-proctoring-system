@@ -2,16 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import axios from "axios";
+import api from "../../lib/api";
+import { getAuthToken } from "../../lib/auth";
 
 type ExamRole = "ADMIN" | "PROCTOR" | "STUDENT";
-
-type MyExam = {
-  examId: string;
-  role: ExamRole;
-};
-
-const API = "http://localhost:8080";
+type MyExam = { examId: string; role: ExamRole };
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -19,39 +14,22 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("token")
-      : null;
-
   useEffect(() => {
-    if (!token) {
+    if (!getAuthToken()) {
       router.replace("/login");
       return;
     }
 
-    axios
-      .get<MyExam[]>(`${API}/api/my-exams`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then(res => setExams(res.data))
+    api.get<MyExam[]>("/api/my-exams")
+      .then((res) => setExams(res.data))
       .finally(() => setLoading(false));
-  }, [router, token]);
+  }, [router]);
 
   const createExam = async () => {
-    if (!token) return;
-
     setCreating(true);
     try {
-      const res = await axios.post(
-        `${API}/api/exams`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const examId = res.data.id;
-
-      router.push(`/admin/${examId}`);
+      const res = await api.post("/api/exams", {});
+      router.push(`/admin/${res.data.id}`);
     } finally {
       setCreating(false);
     }
@@ -61,50 +39,17 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 16 }}>
-        Your Exams
-      </h1>
-
-      <button
-        onClick={createExam}
-        disabled={creating}
-        style={{ padding: "8px 14px", marginBottom: 24 }}
-      >
+      <h1 style={{ fontSize: 24, marginBottom: 16 }}>Your Exams</h1>
+      <button onClick={createExam} disabled={creating} style={{ padding: "8px 14px", marginBottom: 24 }}>
         {creating ? "Creating…" : "Create New Exam"}
       </button>
-
       {exams.length === 0 && <p>No exams assigned yet.</p>}
-
       <div style={{ display: "grid", gap: 16 }}>
-        {exams.map(exam => (
-          <div
-            key={exam.examId}
-            style={{
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              padding: 16,
-            }}
-          >
-            <div style={{ fontSize: 12, wordBreak: "break-all" }}>
-              {exam.examId}
-            </div>
-
-            <div style={{ margin: "8px 0" }}>
-              Role: <strong>{exam.role}</strong>
-            </div>
-
-            <button
-              onClick={() => {
-                if (exam.role === "ADMIN")
-                  router.push(`/admin/${exam.examId}`);
-                else if (exam.role === "PROCTOR")
-                  router.push(`/proctor/${exam.examId}`);
-                else
-                  router.push(`/exam/${exam.examId}`);
-              }}
-            >
-              Open
-            </button>
+        {exams.map((exam) => (
+          <div key={exam.examId} style={{ border: "1px solid #ccc", borderRadius: 6, padding: 16 }}>
+            <div style={{ fontSize: 12, wordBreak: "break-all" }}>{exam.examId}</div>
+            <div style={{ margin: "8px 0" }}>Role: <strong>{exam.role}</strong></div>
+            <button onClick={() => router.push(`/admin/${exam.examId}`)}>Open</button>
           </div>
         ))}
       </div>

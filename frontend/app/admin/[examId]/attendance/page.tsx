@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import axios from "axios";
+import api from "../../../../lib/api";
+import { getAuthToken } from "../../../../lib/auth";
 
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
 
@@ -12,8 +13,6 @@ type Attendance = {
   status: SessionStatus | null;
   lastHeartbeatAt: string | null;
 };
-
-const API = "http://localhost:8080";
 
 export default function AttendancePage() {
   const params = useParams();
@@ -28,16 +27,12 @@ export default function AttendancePage() {
     if (!examId) return;
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!getAuthToken()) {
         setError("Unauthorized");
         return;
       }
 
-      const res = await axios.get<Attendance[]>(
-        `${API}/api/exams/${examId}/attendance`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await api.get<Attendance[]>(`/api/exams/${examId}/attendance`);
 
       setData(res.data);
       setError("");

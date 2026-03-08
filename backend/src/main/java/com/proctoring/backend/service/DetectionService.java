@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.proctoring.backend.model.incident.Incident;
@@ -41,6 +42,10 @@ public class DetectionService {
 
     @SuppressWarnings("unchecked")
     public List<Incident> analyzeFrame(String sessionId, String frame, Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new RuntimeException("Forbidden");
+        }
+
         ExamSession session = sessionRepository.findById(sessionId);
         if (session == null) {
             throw new IllegalArgumentException("Session not found");
@@ -58,11 +63,16 @@ public class DetectionService {
                 "frame", frame
         );
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-                aiServiceBaseUrl + "/analyze_frame",
-                new HttpEntity<>(requestBody, headers),
-                Map.class
-        );
+        ResponseEntity<Map> response;
+        try {
+            response = restTemplate.postForEntity(
+                    aiServiceBaseUrl + "/analyze_frame",
+                    new HttpEntity<>(requestBody, headers),
+                    Map.class
+            );
+        } catch (RestClientException ex) {
+            return Collections.emptyList();
+        }
 
         List<Map<String, Object>> incidentsPayload = response.getBody() == null
                 ? Collections.emptyList()
