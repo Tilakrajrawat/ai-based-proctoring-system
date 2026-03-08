@@ -33,8 +33,7 @@ export default function LoginPage() {
         email,
         otp,
       });
-
-      localStorage.setItem("token", res.data.token);
+      document.cookie = `token=${res.data.token}; path=/`;
       window.location.href = "/dashboard";
     } catch {
       setError("Invalid OTP");

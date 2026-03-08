@@ -1,8 +1,10 @@
 package com.proctoring.backend.controller;
 
-import com.proctoring.backend.controller.dto.AssignUserRequest;
+
 import com.proctoring.backend.dto.AttendanceResponse;
-import com.proctoring.backend.controller.dto.MyExamResponse;
+
+import com.proctoring.backend.dto.AssignUserRequest;
+import com.proctoring.backend.dto.MyExamResponse;
 import com.proctoring.backend.model.exam.Exam;
 import com.proctoring.backend.model.session.ExamAssignment;
 import com.proctoring.backend.model.session.ExamRole;
