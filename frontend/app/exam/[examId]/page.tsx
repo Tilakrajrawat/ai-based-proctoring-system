@@ -14,11 +14,12 @@ export default function StudentExamPage() {
   const router = useRouter();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  // FIX: Explicitly typing the state prevents the 'never' error
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const frameRef = useRef<NodeJS.Timeout | null>(null);
 
   const startedRef = useRef(false);
   const heartbeatFails = useRef(0);
@@ -28,15 +29,53 @@ export default function StudentExamPage() {
   const [status, setStatus] = useState<SessionStatus>("ACTIVE");
   const [showPreview, setShowPreview] = useState(true);
 
-  // Initialize WebRTC logic
-  useStudentWebRTC({
-    examId,
-    sessionId,
-    stream,
-  });
-  
+  useStudentWebRTC({ examId, sessionId, stream });
 
-  /* ---------------- HELPERS ---------------- */
+  const reportIncident = useCallback(
+    async (type: "TAB_SWITCH" | "WINDOW_BLUR" | "FULLSCREEN_EXIT") => {
+      if (!sessionId) return;
+      const token = localStorage.getItem("token");
+      await fetch(`${API}/api/incidents`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sessionId, type, confidence: 0.95 }),
+      });
+    },
+    [sessionId]
+  );
+
+  const sendFrame = useCallback(async () => {
+    if (!sessionId || !videoRef.current || !canvasRef.current || status !== "ACTIVE") {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frame = canvas.toDataURL("image/jpeg", 0.7);
+
+    const token = localStorage.getItem("token");
+    await fetch(`${API}/api/frames`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ sessionId, frame }),
+    });
+  }, [sessionId, status]);
+
   const stopStream = useCallback(() => {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -44,7 +83,6 @@ export default function StudentExamPage() {
     }
   }, [stream]);
 
-  /* ---------------- ACCESS CHECK ---------------- */
   useEffect(() => {
     if (!examId) return;
     const checkAccess = async () => {
@@ -62,7 +100,6 @@ export default function StudentExamPage() {
     checkAccess();
   }, [examId]);
 
-  /* ---------------- START SESSION ---------------- */
   useEffect(() => {
     if (access !== "granted" || startedRef.current || !examId) return;
     const startSession = async () => {
@@ -82,7 +119,6 @@ export default function StudentExamPage() {
     startSession();
   }, [access, examId]);
 
-  /* ---------------- CAMERA ---------------- */
   useEffect(() => {
     if (access !== "granted" || stream) return;
 
@@ -93,16 +129,10 @@ export default function StudentExamPage() {
         if (videoRef.current) videoRef.current.srcObject = s;
       })
       .catch(() => setStatus("SUSPENDED"));
-
-    return () => {
-      // Logic handled in specific cleanup or stopStream
-    };
   }, [access, stream]);
 
-  /* ---------------- HEARTBEAT ---------------- */
   useEffect(() => {
     if (!sessionId || status !== "ACTIVE") return;
-
     heartbeatRef.current = setInterval(async () => {
       try {
         const token = localStorage.getItem("token");
@@ -123,7 +153,6 @@ export default function StudentExamPage() {
     };
   }, [sessionId, status]);
 
-  /* ---------------- POLL STATUS ---------------- */
   useEffect(() => {
     if (!sessionId) return;
     pollRef.current = setInterval(async () => {
@@ -142,7 +171,39 @@ export default function StudentExamPage() {
     };
   }, [sessionId]);
 
-  /* ---------------- UI LOGIC ---------------- */
+  useEffect(() => {
+    if (!sessionId || status !== "ACTIVE") return;
+    frameRef.current = setInterval(sendFrame, 2000);
+
+    return () => {
+      if (frameRef.current) clearInterval(frameRef.current);
+    };
+  }, [sessionId, status, sendFrame]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) void reportIncident("TAB_SWITCH");
+    };
+
+    const onBlur = () => void reportIncident("WINDOW_BLUR");
+
+    const onFullscreen = () => {
+      if (!document.fullscreenElement) {
+        void reportIncident("FULLSCREEN_EXIT");
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("fullscreenchange", onFullscreen);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("fullscreenchange", onFullscreen);
+    };
+  }, [reportIncident]);
+
   const handleEndExam = async () => {
     if (!sessionId) return;
     const token = localStorage.getItem("token");
@@ -162,7 +223,7 @@ export default function StudentExamPage() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Exam: {examId}</h1>
-      
+
       <div style={{ marginBottom: 10 }}>
         <button onClick={() => setShowPreview(!showPreview)}>
           {showPreview ? "Hide Preview" : "Show Preview"}
@@ -174,13 +235,14 @@ export default function StudentExamPage() {
         autoPlay
         muted
         playsInline
-        style={{ 
-          width: "300px", 
+        style={{
+          width: "300px",
           display: showPreview ? "block" : "none",
           border: "2px solid #ccc",
-          borderRadius: "8px"
+          borderRadius: "8px",
         }}
       />
+      <canvas ref={canvasRef} style={{ display: "none" }} />
 
       {status === "SUSPENDED" && (
         <div style={{ color: "red", fontWeight: "bold", padding: "10px", border: "1px solid red" }}>
@@ -188,8 +250,8 @@ export default function StudentExamPage() {
         </div>
       )}
 
-      <button 
-        onClick={handleEndExam} 
+      <button
+        onClick={handleEndExam}
         style={{ marginTop: 20, padding: "10px 20px", background: "red", color: "white", borderRadius: "4px" }}
       >
         End Exam

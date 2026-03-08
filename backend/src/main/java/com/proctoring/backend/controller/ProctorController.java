@@ -17,6 +17,8 @@ import java.util.List;
 @RequestMapping("/api/proctor")
 public class ProctorController {
 
+    private static final double AUTO_SUSPEND_THRESHOLD = 2.0;
+
     private final ExamSessionRepository sessionRepository;
     private final ExamAssignmentRepository assignmentRepository;
     private final IncidentRepository incidentRepository;
@@ -94,6 +96,9 @@ public class ProctorController {
         authorize(examId, authentication);
 
         ExamSession session = sessionRepository.findById(sessionId);
+        if (session.getTotalSeverity() >= AUTO_SUSPEND_THRESHOLD) {
+            throw new RuntimeException("Cannot resume: auto-suspend threshold exceeded");
+        }
         session.setStatus(SessionStatus.ACTIVE);
         sessionRepository.save(session);
 

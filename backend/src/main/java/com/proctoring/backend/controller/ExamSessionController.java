@@ -1,8 +1,8 @@
 package com.proctoring.backend.controller;
 
-import com.proctoring.backend.dto.AssignUserRequest;
+import com.proctoring.backend.controller.dto.AssignUserRequest;
 import com.proctoring.backend.dto.AttendanceResponse;
-import com.proctoring.backend.dto.MyExamResponse;
+import com.proctoring.backend.controller.dto.MyExamResponse;
 import com.proctoring.backend.model.exam.Exam;
 import com.proctoring.backend.model.session.ExamAssignment;
 import com.proctoring.backend.model.session.ExamRole;
@@ -195,6 +195,28 @@ public String heartbeat(
     return "OK";  
 }  
 
+
+@GetMapping("/sessions/{sessionId}")
+public ExamSession getSession(
+        @PathVariable String sessionId,
+        Authentication authentication
+) {
+    ExamSession session = examSessionRepository.findById(sessionId);
+    if (session == null) {
+        throw new RuntimeException("Session not found");
+    }
+
+    ExamAssignment assignment = assignmentRepository
+            .findByExamIdAndEmail(session.getExamId(), authentication.getName())
+            .orElseThrow(() -> new RuntimeException("Not assigned"));
+
+    if (assignment.getRole() == ExamRole.STUDENT && !session.getStudentId().equals(authentication.getName())) {
+        throw new RuntimeException("Forbidden");
+    }
+
+    return session;
+}
+
 @PostMapping("/sessions/{sessionId}/end")  
 public String endSession(  
         @PathVariable String sessionId,  
@@ -255,7 +277,8 @@ return students.stream().map(student -> {
                 false,  
                 null,  
                 null,  
-                null  
+                null,
+                0.0
         );  
     }  
 
@@ -265,7 +288,8 @@ return students.stream().map(student -> {
             true,  
             session.getStatus(),  
             session.getStartedAt(),  
-            session.getLastHeartbeatAt()  
+            session.getLastHeartbeatAt(),
+            session.getTotalSeverity()
     );  
 }).toList();
 

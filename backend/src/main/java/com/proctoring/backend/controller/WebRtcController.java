@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/webrtc")
-public class WebRTCController {
+public class WebRtcController {
 
     private final Map<String, Object> signals = new ConcurrentHashMap<>();
 
