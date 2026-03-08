@@ -29,131 +29,67 @@ type Incident = {
 export default function SessionInspectionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const router = useRouter();
-
   const [session, setSession] = useState<Session | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  /* ---------------- LOAD SESSION ---------------- */
-
   useEffect(() => {
-    let active = true;
-
-    const loadData = async () => {
-      try {
-        const [sessionRes, incidentsRes] = await Promise.all([
-          api.get<Session>(`/api/sessions/${sessionId}`),
-          api.get<Incident[]>(`/api/incidents/session/${sessionId}`)
-        ]);
-
-        if (!active) return;
-
-        setSession(sessionRes.data);
-        setIncidents(incidentsRes.data);
-      } catch (err) {
-        console.error("Failed to load session data", err);
-      } finally {
-        if (active) setLoading(false);
-      }
+    const load = async () => {
+      const sessionRes = await api.get<Session>(`/api/sessions/${sessionId}`);
+      setSession(sessionRes.data);
+      const incidentsRes = await api.get<Incident[]>(`/api/incidents/session/${sessionId}`);
+      setIncidents(incidentsRes.data);
     };
 
-    loadData();
-
-    return () => {
-      active = false;
-    };
+    load();
   }, [sessionId]);
-
-  /* ---------------- WEBSOCKET LIVE UPDATES ---------------- */
 
   useEffect(() => {
     const token = getAuthToken();
     if (!token) return;
 
     const client = createStompClient(token, (connectedClient) => {
-      connectedClient.subscribe("/topic/incidentDetected", (msg) => {
-        const incident = JSON.parse(msg.body) as Incident;
-
+      connectedClient.subscribe("/topic/incidentDetected", (message) => {
+        const incident = JSON.parse(message.body) as Incident;
         if (incident.sessionId === sessionId) {
           setIncidents((prev) => [...prev, incident]);
         }
       });
-
-      connectedClient.subscribe("/topic/sessionUpdated", (msg) => {
-        const update = JSON.parse(msg.body) as Session;
-
+      connectedClient.subscribe("/topic/sessionUpdated", (message) => {
+        const update = JSON.parse(message.body) as Session;
         if (update.id === sessionId) {
           setSession((prev) => ({ ...(prev ?? update), ...update }));
         }
       });
     });
 
-    return () => {
-      void client.deactivate();
-    };
+    return () => client.deactivate();
   }, [sessionId]);
-
-  /* ---------------- WEBRTC STREAM ---------------- */
 
   useProctorWebRTC(session?.examId ?? "", sessionId, videoRef);
 
-  if (loading) {
-    return <div className="p-6">Loading session...</div>;
-  }
-
   return (
-    <div className="min-h-screen p-6 space-y-4">
-
-      <button
-        onClick={() => router.back()}
-        className="text-sm underline"
-      >
-        ← Back
-      </button>
-
+    <div className="min-h-screen bg-[#0f0f12] text-white p-4 lg:p-6">
+      <button onClick={() => router.back()} className="text-white/80 hover:text-white mb-4">← Back</button>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-
-        {/* Student Info */}
-
-        <div className="xl:col-span-3 border rounded p-4">
-          <h2 className="font-semibold mb-3">Student Info</h2>
-
-          <div className="text-sm text-gray-500">Student ID</div>
-          <div className="font-medium mb-3">
-            {session?.studentId ?? "-"}
-          </div>
-
-          <div className="text-sm text-gray-500">Risk Score</div>
-          <div className="text-xl font-semibold mb-3">
-            {session?.totalSeverity?.toFixed(1) ?? "0.0"}
-          </div>
-
-          <div className="text-sm text-gray-500">Session Status</div>
+        <div className="xl:col-span-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-5">
+          <h2 className="text-lg font-semibold">Student Info</h2>
+          <div className="text-sm text-white/70 mt-3">Student ID</div>
+          <div className="font-medium">{session?.studentId ?? "-"}</div>
+          <div className="text-sm text-white/70 mt-3">Risk Score</div>
+          <div className="text-2xl text-orange-300 font-semibold">{session?.totalSeverity?.toFixed(1) ?? "0.0"}</div>
+          <div className="text-sm text-white/70 mt-3">Session State</div>
           <div>{session?.status ?? "-"}</div>
         </div>
 
-        {/* Video Feed */}
-
-        <div className="xl:col-span-6 border rounded p-4">
-          <h2 className="font-semibold mb-3">Live Video Feed</h2>
-
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            controls
-            className="w-full rounded bg-black min-h-[360px]"
-          />
+        <div className="xl:col-span-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-5">
+          <h2 className="text-lg font-semibold mb-3">Live Video Feed</h2>
+          <video ref={videoRef} autoPlay playsInline controls className="w-full rounded-xl bg-black/40 min-h-[360px]" />
         </div>
-
-        {/* Incident Timeline */}
 
         <div className="xl:col-span-3">
           <IncidentTimeline incidents={incidents} />
         </div>
-
       </div>
     </div>
   );

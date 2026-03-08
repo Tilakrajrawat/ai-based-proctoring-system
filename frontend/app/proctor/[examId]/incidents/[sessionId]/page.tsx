@@ -43,7 +43,7 @@ export default function ProctorIncidentsPage() {
       });
     });
 
-    return () => { void client.deactivate(); };
+    return () => client.deactivate();
   }, [sessionId]);
 
   return (

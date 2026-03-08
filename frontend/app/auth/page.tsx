@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
-import EmailForm from "../../components/auth/EmailForm";
-import OtpForm from "../../components/auth/OtpForm";
+import EmailForm from "../../compoents/auth/EmailForm";
+import OtpForm from "../../compoents/auth/OtpForm";
 
 
 export default function AuthPage() {

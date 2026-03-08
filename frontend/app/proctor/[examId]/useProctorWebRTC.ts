@@ -6,7 +6,7 @@ import io from "socket.io-client";
 export function useProctorWebRTC(
   examId: string,
   sessionId: string | null,
-  videoRef: React.RefObject<HTMLVideoElement | null>
+  videoRef: React.RefObject<HTMLVideoElement>
 ) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
