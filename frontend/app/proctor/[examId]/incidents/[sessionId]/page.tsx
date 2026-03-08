@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createStompClient } from "../../../../../lib/stomp";
 import { useParams, useRouter } from "next/navigation";
+import { getAuthHeaders, getAuthToken } from "../../../../../lib/auth";
 
 type Incident = {
   id: string;
@@ -10,8 +11,6 @@ type Incident = {
   confidence: number;
   createdAt: string;
 };
-
-const API = "http://localhost:8080";
 
 export default function ProctorIncidentsPage() {
   const { examId, sessionId } = useParams<{
@@ -25,15 +24,11 @@ export default function ProctorIncidentsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return;
+      if (!getAuthToken()) return;
 
-      const res = await fetch(
-        `${API}/api/proctor/sessions/${sessionId}/incidents`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await fetch(`http://localhost:8080/api/proctor/sessions/${sessionId}/incidents`, {
+        headers: getAuthHeaders(),
+      });
 
       if (!res.ok) return;
 
@@ -49,7 +44,7 @@ export default function ProctorIncidentsPage() {
 
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) return;
 
     const client = createStompClient(token, (connectedClient) => {

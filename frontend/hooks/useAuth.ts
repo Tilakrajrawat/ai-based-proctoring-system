@@ -1,7 +1,6 @@
 import { useState } from "react";
-import axios from "axios";
-
-const API = "http://localhost:8080/api";
+import api from "../lib/api";
+import { setAuthToken } from "../lib/auth";
 
 export function useAuth() {
   const [email, setEmail] = useState("");
@@ -14,7 +13,7 @@ export function useAuth() {
       setLoading(true);
       setError(null);
 
-      await axios.post(`${API}/auth/request-otp`, { email });
+      await api.post("/api/auth/request-otp", { email });
       setOtpSent(true);
     } catch {
       setError("Failed to send OTP");
@@ -28,14 +27,12 @@ export function useAuth() {
       setLoading(true);
       setError(null);
 
-      const res = await axios.post(`${API}/auth/verify-otp`, {
+      const res = await api.post("/api/auth/verify-otp", {
         email,
         otp,
       });
 
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", res.data.role);
-      localStorage.setItem("email", email);
+      setAuthToken(res.data.token);
 
       return res.data.role;
     } catch {

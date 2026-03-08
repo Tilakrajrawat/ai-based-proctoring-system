@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createStompClient } from "../../../lib/stomp";
 import { useParams, useRouter } from "next/navigation";
-import axios from "axios";
+import api from "../../../lib/api";
+import { getAuthToken } from "../../../lib/auth";
 
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
 
@@ -16,32 +17,20 @@ type Row = {
   totalSeverity: number;
 };
 
-const API = "http://localhost:8080";
-
 export default function ProctorDashboardPage() {
   const params = useParams();
-  const examId =
-    typeof params.examId === "string" ? params.examId : null;
-
+  const examId = typeof params.examId === "string" ? params.examId : null;
   const router = useRouter();
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("token")
-      : null;
-
   const load = useCallback(async () => {
-    if (!token || !examId) return;
+    if (!examId) return;
 
     try {
-      const res = await axios.get<Row[]>(
-        `${API}/api/exams/${examId}/attendance`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await api.get<Row[]>(`/api/exams/${examId}/attendance`);
       setRows(res.data);
       setError("");
     } catch {
@@ -49,17 +38,18 @@ export default function ProctorDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [examId, token]);
+  }, [examId]);
 
   useEffect(() => {
-    if (!token) {
+    if (!getAuthToken()) {
       router.replace("/login");
       return;
     }
     load();
-  }, [token, router, load]);
+  }, [router, load]);
 
   useEffect(() => {
+    const token = getAuthToken();
     if (!token) return;
 
     const client = createStompClient(token, (connectedClient) => {
@@ -76,36 +66,22 @@ export default function ProctorDashboardPage() {
     });
 
     return () => client.deactivate();
-  }, [token]);
+  }, []);
 
   const stats = useMemo(() => {
     const total = rows.length;
-    const present = rows.filter(r => r.attended).length;
+    const present = rows.filter((r) => r.attended).length;
     const absent = total - present;
-    const active = rows.filter(r => r.status === "ACTIVE").length;
-    const suspended = rows.filter(r => r.status === "SUSPENDED").length;
+    const active = rows.filter((r) => r.status === "ACTIVE").length;
+    const suspended = rows.filter((r) => r.status === "SUSPENDED").length;
 
     return { total, present, absent, active, suspended };
   }, [rows]);
 
-  const act = async (
-    sessionId: string | null,
-    action: "suspend" | "resume" | "submit"
-  ) => {
-    if (!token || !examId || !sessionId) return;
+  const act = async (sessionId: string | null, action: "suspend" | "resume" | "submit") => {
+    if (!examId || !sessionId) return;
 
-    const map = {
-      suspend: "suspend",
-      resume: "resume",
-      submit: "submit",
-    };
-
-    await axios.post(
-      `${API}/api/proctor/exams/${examId}/students/${sessionId}/${map[action]}`,
-      {},
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
+    await api.post(`/api/proctor/exams/${examId}/students/${sessionId}/${action}`, {});
     load();
   };
 
@@ -116,11 +92,8 @@ export default function ProctorDashboardPage() {
   return (
     <div style={{ padding: 24 }}>
       <button onClick={() => router.back()}>← Back</button>
-
       <h1 style={{ fontSize: 24 }}>Proctor Dashboard</h1>
-      <div style={{ fontSize: 12, marginBottom: 20 }}>
-        Exam ID: {examId}
-      </div>
+      <div style={{ fontSize: 12, marginBottom: 20 }}>Exam ID: {examId}</div>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
         <Stat label="Total" value={stats.total} />
@@ -132,90 +105,25 @@ export default function ProctorDashboardPage() {
 
       <table border={1} cellPadding={8} width="100%">
         <thead>
-          <tr>
-            <th>Email</th>
-            <th>Attended</th>
-            <th>Status</th>
-            <th>Last Seen</th>
-            <th>Severity</th>
-            <th>Actions</th>
-          </tr>
+          <tr><th>Email</th><th>Attended</th><th>Status</th><th>Last Seen</th><th>Severity</th><th>Actions</th></tr>
         </thead>
         <tbody>
-          {rows.map(row => {
-            const terminal =
-              row.status === "ENDED" || row.status === "SUBMITTED";
-
+          {rows.map((row) => {
+            const terminal = row.status === "ENDED" || row.status === "SUBMITTED";
             return (
               <tr key={row.sessionId ?? row.email}>
-                <td>{row.email}</td>
-                <td>{row.attended ? "Yes" : "No"}</td>
-                <td>{row.status ?? "-"}</td>
-                <td>
-                  {row.lastHeartbeatAt
-                    ? new Date(row.lastHeartbeatAt).toLocaleTimeString()
-                    : "-"}
-                </td>
+                <td>{row.email}</td><td>{row.attended ? "Yes" : "No"}</td><td>{row.status ?? "-"}</td>
+                <td>{row.lastHeartbeatAt ? new Date(row.lastHeartbeatAt).toLocaleTimeString() : "-"}</td>
                 <td>{row.totalSeverity?.toFixed(2) ?? "0.00"}</td>
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {!row.sessionId && "-"}
-
-                  {row.sessionId && (
-                    <>
-                      <button
-                        onClick={() =>
-                          router.push(
-                            `/proctor/${examId}/live/${row.sessionId}`
-                          )
-                        }
-                      >
-                        Live Feed
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          router.push(
-                            `/proctor/${examId}/incidents/${row.sessionId}`
-                          )
-                        }
-                      >
-                        Incidents
-                      </button>
-
-                      {!terminal && row.status === "ACTIVE" && (
-                        <button
-                          onClick={() =>
-                            act(row.sessionId, "suspend")
-                          }
-                        >
-                          Suspend
-                        </button>
-                      )}
-
-                      {!terminal && row.status === "SUSPENDED" && (
-                        <button
-                          disabled={(row.totalSeverity ?? 0) >= 2.0}
-                          title={(row.totalSeverity ?? 0) >= 2.0 ? "Blocked: auto-suspend threshold reached" : ""}
-                          onClick={() =>
-                            act(row.sessionId, "resume")
-                          }
-                        >
-                          Resume
-                        </button>
-                      )}
-
-                      {!terminal && (
-                        <button
-                          style={{ color: "red" }}
-                          onClick={() =>
-                            act(row.sessionId, "submit")
-                          }
-                        >
-                          Force Submit
-                        </button>
-                      )}
-                    </>
-                  )}
+                  {row.sessionId && <>
+                    <button onClick={() => router.push(`/proctor/${examId}/live/${row.sessionId}`)}>Live Feed</button>
+                    <button onClick={() => router.push(`/proctor/${examId}/incidents/${row.sessionId}`)}>Incidents</button>
+                    {!terminal && row.status === "ACTIVE" && <button onClick={() => act(row.sessionId, "suspend")}>Suspend</button>}
+                    {!terminal && row.status === "SUSPENDED" && <button disabled={(row.totalSeverity ?? 0) >= 2.0} onClick={() => act(row.sessionId, "resume")}>Resume</button>}
+                    {!terminal && <button style={{ color: "red" }} onClick={() => act(row.sessionId, "submit")}>Force Submit</button>}
+                  </>}
                 </td>
               </tr>
             );
@@ -227,17 +135,5 @@ export default function ProctorDashboardPage() {
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div
-      style={{
-        border: "1px solid #ccc",
-        padding: 12,
-        minWidth: 120,
-        borderRadius: 6,
-      }}
-    >
-      <div style={{ fontSize: 12 }}>{label}</div>
-      <div style={{ fontSize: 20 }}>{value}</div>
-    </div>
-  );
+  return <div style={{ border: "1px solid #ccc", padding: 12, minWidth: 120, borderRadius: 6 }}><div style={{ fontSize: 12 }}>{label}</div><div style={{ fontSize: 20 }}>{value}</div></div>;
 }
