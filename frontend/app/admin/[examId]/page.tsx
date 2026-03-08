@@ -153,6 +153,9 @@ export default function AdminExamPage() {
 >
   View Attendance
 </button>
+      <button onClick={() => router.push(`/admin/analytics`)} style={{ marginLeft: 8 }}>
+  Open Analytics Dashboard
+</button>
     </div>
   );
 }
