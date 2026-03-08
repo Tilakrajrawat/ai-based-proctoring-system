@@ -13,11 +13,14 @@ public class Incident {
 
     private double severity;
 
+    private Instant timestamp;
     private Instant detectedAt;
     private Instant createdAt;
+    private String videoSnippetUrl;
 
     public Incident() {
         this.id = UUID.randomUUID().toString();
+        this.timestamp = Instant.now();
         this.detectedAt = Instant.now();
         this.createdAt = Instant.now();
     }
@@ -27,6 +30,7 @@ public class Incident {
         this.sessionId = sessionId.trim();
         this.type = type;
         this.confidence = confidence;
+        this.timestamp = Instant.now();
         this.detectedAt = Instant.now();
         this.createdAt = Instant.now();
     }
@@ -63,6 +67,14 @@ public class Incident {
         return detectedAt;
     }
 
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Instant timestamp) {
+        this.timestamp = timestamp;
+    }
+
     public void setDetectedAt(Instant detectedAt) {
         this.detectedAt = detectedAt;
     }
@@ -73,5 +85,13 @@ public class Incident {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getVideoSnippetUrl() {
+        return videoSnippetUrl;
+    }
+
+    public void setVideoSnippetUrl(String videoSnippetUrl) {
+        this.videoSnippetUrl = videoSnippetUrl;
     }
 }

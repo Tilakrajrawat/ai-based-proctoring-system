@@ -3,106 +3,56 @@
 import { useEffect, useState } from "react";
 import { createStompClient } from "../../../../../lib/stomp";
 import { useParams, useRouter } from "next/navigation";
-import { getAuthHeaders, getAuthToken } from "../../../../../lib/auth";
+import api from "../../../../../lib/api";
+import { getAuthToken } from "../../../../../lib/auth";
+import IncidentTimeline from "../../../../../components/IncidentTimeline";
 
 type Incident = {
   id: string;
+  sessionId: string;
   type: string;
   confidence: number;
-  createdAt: string;
+  severity: number;
+  timestamp: string;
+  videoSnippetUrl?: string;
 };
 
 export default function ProctorIncidentsPage() {
-  const { examId, sessionId } = useParams<{
-    examId: string;
-    sessionId: string;
-  }>();
-
+  const { examId, sessionId } = useParams<{ examId: string; sessionId: string }>();
   const router = useRouter();
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      if (!getAuthToken()) return;
-
-      const res = await fetch(`http://localhost:8080/api/proctor/sessions/${sessionId}/incidents`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-      setIncidents(data);
-      setLoading(false);
+      const res = await api.get<Incident[]>(`/api/incidents/session/${sessionId}`);
+      setIncidents(res.data);
     };
 
     load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
   }, [sessionId]);
-
 
   useEffect(() => {
     const token = getAuthToken();
     if (!token) return;
 
     const client = createStompClient(token, (connectedClient) => {
-      connectedClient.subscribe("/topic/incidents", (message) => {
-        const incident = JSON.parse(message.body) as Incident & { sessionId: string };
+      connectedClient.subscribe("/topic/incidentDetected", (message) => {
+        const incident = JSON.parse(message.body) as Incident;
         if (incident.sessionId !== sessionId) return;
-        setIncidents((prev) => [incident, ...prev]);
+        setIncidents((prev) => [...prev, incident]);
       });
     });
 
     return () => client.deactivate();
   }, [sessionId]);
+
   return (
-    <div style={{ padding: 24 }}>
-      <button onClick={() => router.back()}>← Back</button>
-
-      <h1 style={{ fontSize: 22, marginTop: 12 }}>
-        Live Incidents
-      </h1>
-
-      <div style={{ fontSize: 12, opacity: 0.7 }}>
-        Exam: {examId}
-      </div>
-      <div style={{ fontSize: 12, opacity: 0.7 }}>
-        Session: {sessionId}
-      </div>
-
-      {loading && <p>Loading…</p>}
-
-      {!loading && incidents.length === 0 && (
-        <p style={{ marginTop: 16 }}>No incidents detected</p>
-      )}
-
-      <div style={{ marginTop: 20 }}>
-        {incidents.map(i => (
-          <div
-            key={i.id}
-            style={{
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              padding: 12,
-              marginBottom: 10,
-            }}
-          >
-            <div>
-              <strong>{i.type}</strong>
-            </div>
-
-            <div style={{ fontSize: 12 }}>
-              Confidence: {(i.confidence * 100).toFixed(1)}%
-            </div>
-
-            <div style={{ fontSize: 12, opacity: 0.6 }}>
-              {new Date(i.createdAt).toLocaleTimeString()}
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="min-h-screen bg-[#0f0f12] text-white p-6">
+      <button onClick={() => router.back()} className="text-white/80 hover:text-white">← Back</button>
+      <h1 className="text-2xl font-semibold mt-3">Live Incidents</h1>
+      <p className="text-sm text-white/60">Exam: {examId}</p>
+      <p className="text-sm text-white/60 mb-4">Session: {sessionId}</p>
+      <IncidentTimeline incidents={incidents} />
     </div>
   );
 }
