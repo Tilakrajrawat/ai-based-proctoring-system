@@ -6,16 +6,23 @@ import com.proctoring.backend.repository.IncidentRepository;
 import com.proctoring.backend.repository.ExamSessionRepository;
 import com.proctoring.backend.model.session.ExamSession;
 import com.proctoring.backend.model.session.SessionStatus;
+
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
-
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class IncidentService {
 
-    private static final double AUTO_SUSPEND_THRESHOLD = 2.0;
+    private final Map<String, Instant> lastIncidentTime = new ConcurrentHashMap<>();
+    private static final int INCIDENT_COOLDOWN_SECONDS = 10;
+@Value("${proctor.auto-suspend-threshold:12}")
+private double AUTO_SUSPEND_THRESHOLD;
 
     private final IncidentRepository incidentRepository;
     private final ExamSessionRepository sessionRepository;
@@ -35,12 +42,28 @@ public class IncidentService {
     }
 
     public Incident reportIncident(Incident incident) {
-        incident.setDetectedAt(Instant.now());
-        incident.setCreatedAt(Instant.now());
+
+        String key = incident.getSessionId() + "_" + incident.getType();
+
+        Instant now = Instant.now();
+        Instant last = lastIncidentTime.get(key);
+
+        // cooldown check
+        if (last != null && Duration.between(last, now).getSeconds() < INCIDENT_COOLDOWN_SECONDS) {
+            return incident; // ignore repeated detection
+        }
+
+        lastIncidentTime.put(key, now);
+
+        incident.setDetectedAt(now);
+        incident.setCreatedAt(now);
 
         Incident saved = incidentRepository.save(incident);
+
         applySeverityAndAutoSuspend(saved);
+
         notifier.notifyIncident(saved);
+
         return saved;
     }
 
@@ -68,6 +91,7 @@ public class IncidentService {
         double severity = incident.getSeverity() > 0
                 ? incident.getSeverity()
                 : severityResolver.resolveSeverity(incident);
+
         incident.setSeverity(severity);
         incidentRepository.save(incident);
 
@@ -84,6 +108,7 @@ public class IncidentService {
         }
 
         sessionRepository.save(session);
+
         notifier.notifySessionUpdate(session);
 
         if (autoSuspended) {
@@ -92,14 +117,17 @@ public class IncidentService {
                     IncidentType.SESSION_AUTO_SUSPEND,
                     1.0
             );
+
             autoIncident.setDetectedAt(Instant.now());
             autoIncident.setCreatedAt(Instant.now());
+
             incidentRepository.save(autoIncident);
+
             notifier.notifyIncident(autoIncident);
         }
     }
-    public List<Incident> getBySession(String sessionId) {
-    return incidentRepository.findBySessionId(sessionId);
-}
 
+    public List<Incident> getBySession(String sessionId) {
+        return incidentRepository.findBySessionId(sessionId);
+    }
 }
