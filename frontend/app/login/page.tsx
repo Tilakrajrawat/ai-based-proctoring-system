@@ -43,7 +43,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-[420px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.07] rounded-2xl shadow-2xl p-7">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         <h1 className="text-3xl font-semibold tracking-wide mb-1">
-          PROCTOR<span className="text-[#4f8eff]">//</span>AI
+          PROCTOR<span className="text-[#4f8eff]"> </span>AI
         </h1>
         <p className="text-white/50 text-sm mb-6">Secure authentication required.</p>
 

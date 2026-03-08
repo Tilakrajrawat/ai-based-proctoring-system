@@ -3,20 +3,28 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "PROCTOR//AI",
-  description: "AI proctoring command center",
+  description: "AI Proctoring Command Center",
+  applicationName: "PROCTOR AI",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body className="bg-[#080810] text-white font-sans antialiased">
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased">
+
+        {/* Ambient background effects */}
         <div className="ambient-layer ambient-blue" />
         <div className="ambient-layer ambient-violet" />
-        <main className="relative z-10">{children}</main>
+
+        {/* App Content */}
+        <main className="relative z-10 min-h-screen">
+          {children}
+        </main>
+
       </body>
     </html>
   );
