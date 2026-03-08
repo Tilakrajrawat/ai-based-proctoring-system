@@ -35,8 +35,11 @@ public class IncidentService {
     }
 
     public Incident reportIncident(Incident incident) {
-        incident.setDetectedAt(Instant.now());
-        incident.setCreatedAt(Instant.now());
+        Instant now = Instant.now();
+        incident.setDetectedAt(now);
+        incident.setTimestamp(now);
+        incident.setCreatedAt(now);
+        attachSnippetUrlIfMissing(incident);
 
         Incident saved = incidentRepository.save(incident);
         applySeverityAndAutoSuspend(saved);
@@ -92,14 +95,25 @@ public class IncidentService {
                     IncidentType.SESSION_AUTO_SUSPEND,
                     1.0
             );
-            autoIncident.setDetectedAt(Instant.now());
-            autoIncident.setCreatedAt(Instant.now());
+            Instant now = Instant.now();
+            autoIncident.setDetectedAt(now);
+            autoIncident.setTimestamp(now);
+            autoIncident.setCreatedAt(now);
+            attachSnippetUrlIfMissing(autoIncident);
             incidentRepository.save(autoIncident);
             notifier.notifyIncident(autoIncident);
         }
     }
     public List<Incident> getBySession(String sessionId) {
-    return incidentRepository.findBySessionId(sessionId);
-}
+        return incidentRepository.findBySessionIdOrderByTimestamp(sessionId);
+    }
 
+    private void attachSnippetUrlIfMissing(Incident incident) {
+        if (incident.getVideoSnippetUrl() == null || incident.getVideoSnippetUrl().isBlank()) {
+            incident.setVideoSnippetUrl(String.format(
+                    "/api/incidents/%s/snippet?startOffsetSec=-5&endOffsetSec=5",
+                    incident.getId()
+            ));
+        }
+    }
 }

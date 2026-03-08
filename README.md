@@ -397,3 +397,25 @@ Real exam platforms need flexible role assignment — a professor might be an ad
 **Tilak Raj Rawat**
 Final Year B.Tech CSE — Graphic Era Hill University
 [LinkedIn](https://linkedin.com/in/tilakrajrawat142) | [GitHub](https://github.com/Tilakrajrawat)
+
+## 📊 Monitoring & Analytics Enhancements
+
+The platform now includes production-style monitoring capabilities for proctors and admins:
+
+- **Incident Timeline** (`GET /api/incidents/session/{sessionId}`) with time-sorted events, confidence, severity, and replay metadata.
+- **Incident Playback Support** with `videoSnippetUrl` attached to incidents and replay controls in timeline UI.
+- **Exam Analytics API** (`GET /api/exams/{examId}/analytics`) with total students, suspicious sessions, average risk score, and top incident types.
+- **Incident Statistics API** (`GET /api/exams/{examId}/incident-stats`) for pie chart visualization.
+- **Session Risk Heatmap API** (`GET /api/exams/{examId}/sessions`) for color-coded student risk monitoring.
+- **Proctor Session Inspection Page** at `frontend/app/proctor/session/[sessionId]/page.tsx`.
+- **Live Event Stream** now includes high-level events: `incidentDetected`, `sessionUpdated`, and `riskScoreUpdated` on `/topic/events`.
+- **Glassmorphism dashboard updates** using Tailwind classes (`backdrop-blur-xl`, `bg-white/10`, `border-white/20`, `shadow-lg`, `rounded-2xl`).
+
+### New Frontend Views
+
+- `frontend/components/IncidentTimeline.tsx`
+- `frontend/components/CheatingTrendChart.tsx` (Recharts line chart)
+- `frontend/app/admin/analytics/page.tsx` (analytics, trend, pie, heatmap)
+- `frontend/app/proctor/session/[sessionId]/page.tsx` (detailed proctor inspection)
+
+These additions enable multi-student live monitoring, replay of suspicious moments, incident trend analysis, and rapid risk-based prioritization.
