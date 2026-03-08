@@ -192,7 +192,25 @@ All actions are broadcast live via WebSocket to all connected dashboard clients.
 - Manual controls per session — Suspend, Resume, End
 
 ---
+### 📋 Attendance Tracking
 
+The system automatically tracks student attendance for every exam session in real time.
+
+**Attendance States:**
+
+| State | Condition |
+|-------|-----------|
+| ABSENT | Student has not started the session yet |
+| PRESENT | Student has started and session is active |
+| INACTIVE | Session was suspended or ended |
+
+**How it works:**
+- When an exam starts, all registered students are marked **ABSENT** by default
+- When a student hits `POST /api/session/start`, their status updates to **PRESENT**
+- If a session is suspended or ended — manually or via auto-suspend — status updates to **INACTIVE**
+- Admin and Proctor can view attendance status per student on the dashboard
+- Full attendance report available per exam via `GET /api/exams/{id}/attendance`
+  
 ### 🖥️ Browser Behavior Detection
 
 Client-side event hooks detect browser-level cheating attempts:
