@@ -42,6 +42,7 @@ private double AUTO_SUSPEND_THRESHOLD;
     }
 
     public Incident reportIncident(Incident incident) {
+<<<<<<< HEAD
 
         String key = incident.getSessionId() + "_" + incident.getType();
 
@@ -57,6 +58,13 @@ private double AUTO_SUSPEND_THRESHOLD;
 
         incident.setDetectedAt(now);
         incident.setCreatedAt(now);
+=======
+        Instant now = Instant.now();
+        incident.setDetectedAt(now);
+        incident.setTimestamp(now);
+        incident.setCreatedAt(now);
+        attachSnippetUrlIfMissing(incident);
+>>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
 
         Incident saved = incidentRepository.save(incident);
 
@@ -117,17 +125,41 @@ private double AUTO_SUSPEND_THRESHOLD;
                     IncidentType.SESSION_AUTO_SUSPEND,
                     1.0
             );
+<<<<<<< HEAD
 
             autoIncident.setDetectedAt(Instant.now());
             autoIncident.setCreatedAt(Instant.now());
 
+=======
+            Instant now = Instant.now();
+            autoIncident.setDetectedAt(now);
+            autoIncident.setTimestamp(now);
+            autoIncident.setCreatedAt(now);
+            attachSnippetUrlIfMissing(autoIncident);
+>>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
             incidentRepository.save(autoIncident);
 
             notifier.notifyIncident(autoIncident);
         }
     }
+<<<<<<< HEAD
 
     public List<Incident> getBySession(String sessionId) {
         return incidentRepository.findBySessionId(sessionId);
     }
 }
+=======
+    public List<Incident> getBySession(String sessionId) {
+        return incidentRepository.findBySessionIdOrderByTimestamp(sessionId);
+    }
+
+    private void attachSnippetUrlIfMissing(Incident incident) {
+        if (incident.getVideoSnippetUrl() == null || incident.getVideoSnippetUrl().isBlank()) {
+            incident.setVideoSnippetUrl(String.format(
+                    "/api/incidents/%s/snippet?startOffsetSec=-5&endOffsetSec=5",
+                    incident.getId()
+            ));
+        }
+    }
+}
+>>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
