@@ -4,18 +4,12 @@ import { useEffect, useState } from "react";
 import { createStompClient } from "../../../../../lib/stomp";
 import { useParams, useRouter } from "next/navigation";
 import { getAuthHeaders, getAuthToken } from "../../../../../lib/auth";
-import IncidentTimeline from "../../../../../components/IncidentTimeline";
 
 type Incident = {
   id: string;
   type: string;
-  incidentType?: string;
   confidence: number;
-  severity: number;
-  timestamp?: string;
   createdAt: string;
-  videoSnippetUrl?: string;
-  sessionId?: string;
 };
 
 export default function ProctorIncidentsPage() {
@@ -32,7 +26,7 @@ export default function ProctorIncidentsPage() {
     const load = async () => {
       if (!getAuthToken()) return;
 
-      const res = await fetch(`http://localhost:8080/api/incidents/session/${sessionId}`, {
+      const res = await fetch(`http://localhost:8080/api/proctor/sessions/${sessionId}/incidents`, {
         headers: getAuthHeaders(),
       });
 
@@ -55,7 +49,7 @@ export default function ProctorIncidentsPage() {
 
     const client = createStompClient(token, (connectedClient) => {
       connectedClient.subscribe("/topic/incidents", (message) => {
-        const incident = JSON.parse(message.body) as Incident;
+        const incident = JSON.parse(message.body) as Incident & { sessionId: string };
         if (incident.sessionId !== sessionId) return;
         setIncidents((prev) => [incident, ...prev]);
       });
@@ -64,16 +58,51 @@ export default function ProctorIncidentsPage() {
     return () => client.deactivate();
   }, [sessionId]);
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-white">
-      <button onClick={() => router.back()} className="mb-4 rounded-lg border border-white/20 px-3 py-1">← Back</button>
+    <div style={{ padding: 24 }}>
+      <button onClick={() => router.back()}>← Back</button>
 
-      <h1 className="text-2xl font-semibold">Live Incidents</h1>
-      <div className="mb-4 text-xs text-slate-300">Exam: {examId} • Session: {sessionId}</div>
+      <h1 style={{ fontSize: 22, marginTop: 12 }}>
+        Live Incidents
+      </h1>
+
+      <div style={{ fontSize: 12, opacity: 0.7 }}>
+        Exam: {examId}
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.7 }}>
+        Session: {sessionId}
+      </div>
 
       {loading && <p>Loading…</p>}
-      {!loading && incidents.length === 0 && <p className="mt-2">No incidents detected</p>}
 
-      {!loading && incidents.length > 0 && <IncidentTimeline incidents={incidents} />}
+      {!loading && incidents.length === 0 && (
+        <p style={{ marginTop: 16 }}>No incidents detected</p>
+      )}
+
+      <div style={{ marginTop: 20 }}>
+        {incidents.map(i => (
+          <div
+            key={i.id}
+            style={{
+              border: "1px solid #ccc",
+              borderRadius: 6,
+              padding: 12,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <strong>{i.type}</strong>
+            </div>
+
+            <div style={{ fontSize: 12 }}>
+              Confidence: {(i.confidence * 100).toFixed(1)}%
+            </div>
+
+            <div style={{ fontSize: 12, opacity: 0.6 }}>
+              {new Date(i.createdAt).toLocaleTimeString()}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -3,7 +3,6 @@ package com.proctoring.backend.controller;
 import java.util.List;
 
 import org.springframework.security.core.Authentication;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,11 +75,4 @@ public class IncidentController {
 
         return service.getBySession(sessionId);
     }
-
-    @GetMapping("/{incidentId}/snippet")
-    public ResponseEntity<String> getSnippetUrl(@PathVariable String incidentId, Authentication authentication) {
-        // Placeholder endpoint: returns a URL for external snippet storage/CDN integration.
-        return ResponseEntity.ok(String.format("/snippets/%s.mp4", incidentId));
-    }
 }
-
