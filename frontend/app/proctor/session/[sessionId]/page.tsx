@@ -63,7 +63,7 @@ export default function SessionInspectionPage() {
       });
     });
 
-    return () => client.deactivate();
+    return () => { void client.deactivate(); };
   }, [sessionId]);
 
   useProctorWebRTC(session?.examId ?? "", sessionId, videoRef);
