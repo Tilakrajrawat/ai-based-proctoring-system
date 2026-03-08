@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from face_detector import FaceDetector
 from gaze_detector import GazeDetector
 from object_detector import ObjectDetector
-
+from fastapi import UploadFile, File
 app = FastAPI(title="AI Proctoring Detection Service", version="1.0.0")
 
 face_detector = FaceDetector()
@@ -42,6 +42,19 @@ def decode_frame(encoded: str) -> np.ndarray:
 def health() -> Dict[str, str]:
     return {"status": "ok"}
 
+@app.post("/test_image")
+async def test_image(file: UploadFile = File(...)):
+    contents = await file.read()
+
+    npimg = np.frombuffer(contents, np.uint8)
+    frame = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+    incidents = []
+    incidents.extend(face_detector.detect(frame).incidents)
+    incidents.extend(object_detector.detect(frame))
+    incidents.extend(gaze_detector.detect(frame))
+
+    return {"incidents": incidents}
 
 @app.post("/detect_objects", response_model=DetectionResponse)
 def detect_objects(request: FrameRequest) -> DetectionResponse:
