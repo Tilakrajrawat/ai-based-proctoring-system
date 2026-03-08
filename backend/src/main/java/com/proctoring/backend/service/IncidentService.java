@@ -43,6 +43,7 @@ private double AUTO_SUSPEND_THRESHOLD;
 
     public Incident reportIncident(Incident incident) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 
         String key = incident.getSessionId() + "_" + incident.getType();
 
@@ -65,6 +66,10 @@ private double AUTO_SUSPEND_THRESHOLD;
         incident.setCreatedAt(now);
         attachSnippetUrlIfMissing(incident);
 >>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
+=======
+        incident.setDetectedAt(Instant.now());
+        incident.setCreatedAt(Instant.now());
+>>>>>>> 64c0d5dcef616131bfcfcd04e1191f086e2a7805
 
         Incident saved = incidentRepository.save(incident);
 
@@ -126,6 +131,7 @@ private double AUTO_SUSPEND_THRESHOLD;
                     1.0
             );
 <<<<<<< HEAD
+<<<<<<< HEAD
 
             autoIncident.setDetectedAt(Instant.now());
             autoIncident.setCreatedAt(Instant.now());
@@ -137,6 +143,10 @@ private double AUTO_SUSPEND_THRESHOLD;
             autoIncident.setCreatedAt(now);
             attachSnippetUrlIfMissing(autoIncident);
 >>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
+=======
+            autoIncident.setDetectedAt(Instant.now());
+            autoIncident.setCreatedAt(Instant.now());
+>>>>>>> 64c0d5dcef616131bfcfcd04e1191f086e2a7805
             incidentRepository.save(autoIncident);
 
             notifier.notifyIncident(autoIncident);
@@ -150,16 +160,11 @@ private double AUTO_SUSPEND_THRESHOLD;
 }
 =======
     public List<Incident> getBySession(String sessionId) {
-        return incidentRepository.findBySessionIdOrderByTimestamp(sessionId);
-    }
-
-    private void attachSnippetUrlIfMissing(Incident incident) {
-        if (incident.getVideoSnippetUrl() == null || incident.getVideoSnippetUrl().isBlank()) {
-            incident.setVideoSnippetUrl(String.format(
-                    "/api/incidents/%s/snippet?startOffsetSec=-5&endOffsetSec=5",
-                    incident.getId()
-            ));
-        }
-    }
+    return incidentRepository.findBySessionId(sessionId);
 }
+<<<<<<< HEAD
 >>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
+=======
+
+}
+>>>>>>> 64c0d5dcef616131bfcfcd04e1191f086e2a7805

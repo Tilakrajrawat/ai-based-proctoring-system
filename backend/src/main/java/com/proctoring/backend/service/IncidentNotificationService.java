@@ -5,8 +5,6 @@ import com.proctoring.backend.model.session.ExamSession;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
-
 @Service
 public class IncidentNotificationService {
 
@@ -19,16 +17,12 @@ public class IncidentNotificationService {
     public void notifyIncident(Incident incident) {
         String destination = "/topic/incidents";
         messagingTemplate.convertAndSend(destination, incident);
-        messagingTemplate.convertAndSend("/topic/events", Map.of("event", "incidentDetected", "payload", incident));
+        System.out.println("ALERT SENT: " + destination);
     }
 
     public void notifySessionUpdate(ExamSession session) {
         String destination = "/topic/sessions";
         messagingTemplate.convertAndSend(destination, session);
-        messagingTemplate.convertAndSend("/topic/events", Map.of("event", "sessionUpdated", "payload", session));
-        messagingTemplate.convertAndSend("/topic/events", Map.of("event", "riskScoreUpdated", "payload", Map.of(
-                "sessionId", session.getId(),
-                "riskScore", session.getTotalSeverity()
-        )));
+        System.out.println("SESSION UPDATE SENT: " + destination);
     }
 }
