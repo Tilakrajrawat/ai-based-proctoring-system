@@ -7,9 +7,9 @@ import { getAuthToken } from "../../../lib/auth";
 
 type ExamRole = "ADMIN" | "PROCTOR" | "STUDENT";
 type Assignment = { email: string; role: ExamRole };
-type Section = "Overview" | "Questions" | "Analytics" | "Settings";
+type Section = "Overview" | "Questions" | "Analytics" |"Attendance";
 
-const sections: Section[] = ["Overview", "Questions", "Analytics", "Settings"];
+const sections: Section[] = ["Overview", "Questions", "Analytics", "Attendance"];
 
 export default function AdminExamPage() {
   const { examId } = useParams<{ examId: string }>();
@@ -60,7 +60,9 @@ export default function AdminExamPage() {
             onClick={() => {
               setActive(section);
               if (section === "Questions") router.push(`/admin/${examId}/questions`);
-              if (section === "Analytics") router.push("/admin/analytics");
+              if (section === "Analytics")router.push(`/admin/${examId}/analytics`);
+              if (section === "Attendance")router.push(`/admin/${examId}/attendance`);
+             
             }}
             className={`w-full text-left px-3 py-2 rounded-xl mb-1 transition hover:bg-white/10 active:scale-[0.98] ${
               active === section ? "bg-blue-500/10 border border-blue-500/20 text-blue-400" : "border border-transparent text-white/70"
