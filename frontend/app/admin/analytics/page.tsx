@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import api from "../../../lib/api";
 import IncidentStatsChart from "../../../components/IncidentStatsChart";
 import CheatingTrendChart from "../../../components/CheatingTrendChart";
@@ -19,9 +19,14 @@ type SessionSummary = { sessionId: string; studentId: string; riskScore: number;
 
 export default function AdminAnalyticsPage() {
   const router = useRouter();
-  const params = useSearchParams();
-  const examId = params.get("examId") ?? "";
+  const [examId, setExamId] = useState("");
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = new URLSearchParams(window.location.search).get("examId") ?? "";
+    setExamId(id);
+  }, []);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -65,7 +70,7 @@ export default function AdminAnalyticsPage() {
       });
     });
 
-    return () => client.deactivate();
+    return () => { void client.deactivate(); };
   }, []);
 
   const topIncidents = useMemo(

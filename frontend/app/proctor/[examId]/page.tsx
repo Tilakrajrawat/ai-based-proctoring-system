@@ -6,35 +6,20 @@ import { useParams, useRouter } from "next/navigation";
 import api from "../../../lib/api";
 import { getAuthToken } from "../../../lib/auth";
 import IncidentTimeline from "../../../components/IncidentTimeline";
+import MetricCard from "../../../components/MetricCard";
+import StatusBadge from "../../../components/StatusBadge";
 
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
-
-type Row = {
-  sessionId: string | null;
-  email: string;
-  attended: boolean;
-  status: SessionStatus | null;
-  lastHeartbeatAt: string | null;
-  totalSeverity: number;
-};
-
-type Incident = {
-  id: string;
-  sessionId: string;
-  type: string;
-  confidence: number;
-  severity: number;
-  timestamp: string;
-  videoSnippetUrl?: string;
-};
+type Row = { sessionId: string | null; email: string; attended: boolean; status: SessionStatus | null; lastHeartbeatAt: string | null; totalSeverity: number };
+type Incident = { id: string; sessionId: string; type: string; confidence: number; severity: number; timestamp: string; videoSnippetUrl?: string };
 
 export default function ProctorDashboardPage() {
   const params = useParams();
   const examId = typeof params.examId === "string" ? params.examId : null;
   const router = useRouter();
-
   const [rows, setRows] = useState<Row[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [flashId, setFlashId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!examId) return;
@@ -47,96 +32,89 @@ export default function ProctorDashboardPage() {
       router.replace("/login");
       return;
     }
-
-    const timeout = setTimeout(() => {
-      void load();
-    }, 0);
-
-    return () => clearTimeout(timeout);
+    void load();
   }, [router, load]);
 
   useEffect(() => {
     const token = getAuthToken();
     if (!token) return;
-
     const client = createStompClient(token, (connectedClient) => {
       connectedClient.subscribe("/topic/sessionUpdated", (message) => {
         const session = JSON.parse(message.body) as { id: string; status: SessionStatus; lastHeartbeatAt: string; totalSeverity?: number };
-        setRows((prev) =>
-          prev.map((row) =>
-            row.sessionId === session.id
-              ? { ...row, status: session.status, lastHeartbeatAt: session.lastHeartbeatAt, totalSeverity: session.totalSeverity ?? row.totalSeverity }
-              : row
-          )
-        );
+        setRows((prev) => prev.map((row) => (row.sessionId === session.id ? { ...row, status: session.status, lastHeartbeatAt: session.lastHeartbeatAt, totalSeverity: session.totalSeverity ?? row.totalSeverity } : row)));
+        setFlashId(session.id);
       });
       connectedClient.subscribe("/topic/riskScoreUpdated", (message) => {
         const payload = JSON.parse(message.body) as { sessionId: string; riskScore: number };
         setRows((prev) => prev.map((row) => (row.sessionId === payload.sessionId ? { ...row, totalSeverity: payload.riskScore } : row)));
+        setFlashId(payload.sessionId);
       });
       connectedClient.subscribe("/topic/incidentDetected", (message) => {
         const incident = JSON.parse(message.body) as Incident;
         setIncidents((prev) => [...prev, incident].slice(-50));
       });
     });
-
-    return () => client.deactivate();
+    return () => { void client.deactivate(); };
   }, []);
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const present = rows.filter((r) => r.attended).length;
-    const suspended = rows.filter((r) => r.status === "SUSPENDED").length;
-    return { total, present, suspended };
-  }, [rows]);
+  useEffect(() => {
+    if (!flashId) return;
+    const timer = setTimeout(() => setFlashId(null), 700);
+    return () => clearTimeout(timer);
+  }, [flashId]);
+
+  const metrics = useMemo(() => {
+    const active = rows.filter((r) => r.status === "ACTIVE").length;
+    const flagged = rows.filter((r) => r.totalSeverity > 70).length;
+    const avg = rows.length ? rows.reduce((sum, r) => sum + r.totalSeverity, 0) / rows.length : 0;
+    return { active, incidents: incidents.length, avg, flagged };
+  }, [rows, incidents.length]);
 
   if (!examId) return <div className="p-6">Invalid exam</div>;
 
   return (
-    <div className="min-h-screen bg-[#0f0f12] text-white p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Proctor Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Stat label="Sessions" value={stats.total} color="text-green-300" />
-        <Stat label="Present" value={stats.present} color="text-yellow-300" />
-        <Stat label="Suspended" value={stats.suspended} color="text-red-300" />
+    <div className="min-h-screen p-4 md:p-8 space-y-5">
+      <h1 className="text-2xl">Proctor Command Center</h1>
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <MetricCard label="Active Students" value={metrics.active} accent="text-emerald-300" />
+        <MetricCard label="Incidents" value={metrics.incidents} accent="text-yellow-200" />
+        <MetricCard label="Avg Risk" value={metrics.avg.toFixed(1)} accent="text-orange-300" />
+        <MetricCard label="Flagged" value={metrics.flagged} accent="text-rose-300" />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div className="xl:col-span-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4">
-          <h2 className="font-semibold mb-3">Sessions List</h2>
-          <div className="space-y-2 max-h-[520px] overflow-auto">
-            {rows.map((row) => (
-              <div key={row.sessionId ?? row.email} className="bg-white/5 rounded-xl border border-white/10 p-3">
-                <div className="font-medium">{row.email}</div>
-                <div className="text-xs text-white/70">{row.status ?? "NOT_STARTED"} • Risk {row.totalSeverity.toFixed(1)}</div>
+      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
+        {rows.map((row) => {
+          const risk = Math.max(0, Math.min(100, row.totalSeverity));
+          const level = risk > 80 ? "critical" : risk > 60 ? "suspicious" : risk > 35 ? "warning" : "safe";
+          return (
+            <div key={row.sessionId ?? row.email} className={`relative overflow-hidden bg-white/[0.04] backdrop-blur-2xl border border-white/[0.07] rounded-2xl shadow-2xl p-4 transition ${flashId === row.sessionId ? "ring-2 ring-blue-400/45" : ""} ${risk > 70 ? "shadow-[0_0_30px_rgba(255,23,68,0.25)]" : ""}`}>
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              <div className="h-28 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 text-sm">Video thumbnail</div>
+              <div className="mt-3 flex items-start justify-between gap-2">
+                <div>
+                  <p>{row.email}</p>
+                  <p className="text-xs text-white/55 font-mono">Risk {risk.toFixed(1)}</p>
+                </div>
+                <StatusBadge status={level} />
+              </div>
+              <div className="mt-3 h-2 bg-white/10 rounded-full overflow-hidden"><div className={`h-full ${risk > 70 ? "bg-rose-400" : risk > 50 ? "bg-orange-400" : risk > 30 ? "bg-yellow-300" : "bg-emerald-400"}`} style={{ width: `${risk}%` }} /></div>
+              <div className="mt-3 flex gap-2 flex-wrap">
                 {row.sessionId && (
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    <button className="text-xs px-2 py-1 bg-white/10 rounded" onClick={() => router.push(`/proctor/${examId}/live/${row.sessionId}`)}>Video Feed</button>
-                    <button className="text-xs px-2 py-1 bg-white/10 rounded" onClick={() => router.push(`/proctor/session/${row.sessionId}`)}>Inspect</button>
-                  </div>
+                  <>
+                    <button className="px-3 py-1.5 rounded-lg bg-white/10 text-sm hover:bg-white/20 active:scale-[0.98]" onClick={() => router.push(`/proctor/${examId}/live/${row.sessionId}`)}>Live</button>
+                    <button className="px-3 py-1.5 rounded-lg bg-white/10 text-sm hover:bg-white/20 active:scale-[0.98]" onClick={() => router.push(`/proctor/session/${row.sessionId}`)}>Inspect</button>
+                  </>
+                )}
+                {risk > 70 && row.sessionId && (
+                  <button className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-400/30 text-rose-200 text-sm hover:bg-rose-500/30 active:scale-[0.98]" onClick={() => api.post(`/api/sessions/${row.sessionId}/suspend`)}>Suspend</button>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="xl:col-span-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 flex items-center justify-center min-h-[300px] text-white/60">
-          Select a session to open live video feed.
-        </div>
-
-        <div className="xl:col-span-4">
-          <IncidentTimeline incidents={incidents} />
-        </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
-  );
-}
 
-function Stat({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4">
-      <div className="text-white/70 text-sm">{label}</div>
-      <div className={`text-3xl font-semibold ${color}`}>{value}</div>
+      <IncidentTimeline incidents={incidents} />
     </div>
   );
 }
