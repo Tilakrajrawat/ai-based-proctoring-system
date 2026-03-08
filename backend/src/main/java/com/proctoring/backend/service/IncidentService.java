@@ -65,7 +65,9 @@ public class IncidentService {
 
         if (session == null) return;
 
-        double severity = severityResolver.resolveSeverity(incident);
+        double severity = incident.getSeverity() > 0
+                ? incident.getSeverity()
+                : severityResolver.resolveSeverity(incident);
         incident.setSeverity(severity);
 
         session.setTotalSeverity(session.getTotalSeverity() + severity);

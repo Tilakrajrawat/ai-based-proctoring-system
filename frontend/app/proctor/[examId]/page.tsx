@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createStompClient } from "../../../lib/stomp";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 
@@ -12,6 +13,7 @@ type Row = {
   attended: boolean;
   status: SessionStatus | null;
   lastHeartbeatAt: string | null;
+  totalSeverity: number;
 };
 
 const API = "http://localhost:8080";
@@ -56,6 +58,25 @@ export default function ProctorDashboardPage() {
     }
     load();
   }, [token, router, load]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const client = createStompClient(token, (connectedClient) => {
+      connectedClient.subscribe("/topic/sessions", (message) => {
+        const session = JSON.parse(message.body) as { id: string; status: SessionStatus; lastHeartbeatAt: string; totalSeverity?: number };
+        setRows((prev) =>
+          prev.map((row) =>
+            row.sessionId === session.id
+              ? { ...row, status: session.status, lastHeartbeatAt: session.lastHeartbeatAt, totalSeverity: session.totalSeverity ?? row.totalSeverity }
+              : row
+          )
+        );
+      });
+    });
+
+    return () => client.deactivate();
+  }, [token]);
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -116,6 +137,7 @@ export default function ProctorDashboardPage() {
             <th>Attended</th>
             <th>Status</th>
             <th>Last Seen</th>
+            <th>Severity</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -134,6 +156,7 @@ export default function ProctorDashboardPage() {
                     ? new Date(row.lastHeartbeatAt).toLocaleTimeString()
                     : "-"}
                 </td>
+                <td>{row.totalSeverity?.toFixed(2) ?? "0.00"}</td>
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {!row.sessionId && "-"}
 
@@ -171,6 +194,8 @@ export default function ProctorDashboardPage() {
 
                       {!terminal && row.status === "SUSPENDED" && (
                         <button
+                          disabled={(row.totalSeverity ?? 0) >= 2.0}
+                          title={(row.totalSeverity ?? 0) >= 2.0 ? "Blocked: auto-suspend threshold reached" : ""}
                           onClick={() =>
                             act(row.sessionId, "resume")
                           }

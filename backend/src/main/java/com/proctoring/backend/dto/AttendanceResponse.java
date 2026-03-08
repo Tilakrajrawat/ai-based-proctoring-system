@@ -11,6 +11,7 @@ public class AttendanceResponse {
     private SessionStatus status;
     private Instant startedAt;
     private Instant lastHeartbeatAt;
+    private double totalSeverity;
 
     public AttendanceResponse(
             String sessionId,
@@ -18,7 +19,8 @@ public class AttendanceResponse {
             boolean attended,
             SessionStatus status,
             Instant startedAt,
-            Instant lastHeartbeatAt
+            Instant lastHeartbeatAt,
+            double totalSeverity
     ) {
         this.sessionId = sessionId;
         this.email = email;
@@ -26,6 +28,7 @@ public class AttendanceResponse {
         this.status = status;
         this.startedAt = startedAt;
         this.lastHeartbeatAt = lastHeartbeatAt;
+        this.totalSeverity = totalSeverity;
     }
 
     public String getSessionId() { return sessionId; }
@@ -34,4 +37,5 @@ public class AttendanceResponse {
     public SessionStatus getStatus() { return status; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getLastHeartbeatAt() { return lastHeartbeatAt; }
+    public double getTotalSeverity() { return totalSeverity; }
 }

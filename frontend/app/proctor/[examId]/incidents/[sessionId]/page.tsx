@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createStompClient } from "../../../../../lib/stomp";
 import { useParams, useRouter } from "next/navigation";
 
 type Incident = {
@@ -46,6 +47,21 @@ export default function ProctorIncidentsPage() {
     return () => clearInterval(interval);
   }, [sessionId]);
 
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const client = createStompClient(token, (connectedClient) => {
+      connectedClient.subscribe("/topic/incidents", (message) => {
+        const incident = JSON.parse(message.body) as Incident & { sessionId: string };
+        if (incident.sessionId !== sessionId) return;
+        setIncidents((prev) => [incident, ...prev]);
+      });
+    });
+
+    return () => client.deactivate();
+  }, [sessionId]);
   return (
     <div style={{ padding: 24 }}>
       <button onClick={() => router.back()}>← Back</button>
