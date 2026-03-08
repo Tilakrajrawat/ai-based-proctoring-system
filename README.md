@@ -397,3 +397,105 @@ Real exam platforms need flexible role assignment — a professor might be an ad
 **Tilak Raj Rawat**
 Final Year B.Tech CSE — Graphic Era Hill University
 [LinkedIn](https://linkedin.com/in/tilakrajrawat142) | [GitHub](https://github.com/Tilakrajrawat)
+
+---
+
+## 📈 Monitoring Platform Upgrades
+
+### Incident Timeline
+- Added session-level timeline APIs and UI to display suspicious events in strict chronological order.
+- Timeline entries include timestamp, type, confidence, severity, and replay action when snippet URLs are available.
+
+### Incident Playback
+- Incidents now support `videoSnippetUrl` so proctors can replay suspicious moments.
+- Frontend timeline includes a replay modal with native `<video controls />` playback.
+
+### Analytics Dashboard
+- New admin analytics page: `/admin/analytics?examId={examId}`.
+- Includes KPI cards for total students, suspicious sessions, average risk score, and top incident types.
+
+### Risk Heatmap
+- Added session heatmap cards with color-coded risk bands:
+  - Green: 0-30
+  - Yellow: 30-60
+  - Orange: 60-90
+  - Red: 90-100
+
+### Cheating Trend & Incident Stats
+- Added cheating trend visualization and incident statistics panel for exam-level monitoring.
+- Live data enrichment happens via STOMP event subscriptions.
+
+### Session Inspection
+- New deep inspection route: `/proctor/session/{sessionId}`.
+- Three-panel layout:
+  - Left: student metadata + risk + status
+  - Center: live WebRTC feed
+  - Right: incident timeline + replay
+
+### Live Incident Stream Events
+The backend now broadcasts dedicated event channels:
+- `incidentDetected`
+- `sessionUpdated`
+- `riskScoreUpdated`
+
+These power real-time dashboard updates without manual refresh.
+
+---
+
+## 🧭 Updated Monitoring Flow
+
+```text
+Student Camera
+↓
+WebRTC Stream
+↓
+Frame Processing
+↓
+AI Detection
+↓
+Temporal Smoothing
+↓
+Incident Pipeline
+↓
+Risk Score Update
+↓
+WebSocket Broadcast
+↓
+Proctor Dashboard
+↓
+Analytics Aggregation
+```
+
+---
+
+## 🗺️ Monitoring Architecture Diagram
+
+```text
+┌───────────────────────────────┐
+│ Student Browser (WebRTC Feed) │
+└───────────────┬───────────────┘
+                │
+┌───────────────▼───────────────┐
+│ Spring Boot Proctoring Core   │
+│ - Session lifecycle            │
+│ - Incident ingestion           │
+│ - Risk accumulation            │
+│ - Auto-suspend                 │
+└───────┬───────────────┬───────┘
+        │               │
+┌───────▼───────┐   ┌───▼─────────────────┐
+│ AI Services   │   │ WebSocket Broker     │
+│ OpenCV/YOLO/  │   │ incident/session/risk│
+│ MediaPipe     │   │ update topics        │
+└───────┬───────┘   └───┬─────────────────┘
+        │               │
+        └───────┬───────┘
+                │
+       ┌────────▼────────┐
+       │ Monitoring UI    │
+       │ - Timeline       │
+       │ - Replay         │
+       │ - Heatmap        │
+       │ - Analytics      │
+       └──────────────────┘
+```

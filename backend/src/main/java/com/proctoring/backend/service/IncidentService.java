@@ -2,16 +2,16 @@ package com.proctoring.backend.service;
 
 import com.proctoring.backend.model.incident.Incident;
 import com.proctoring.backend.model.incident.IncidentType;
-import com.proctoring.backend.repository.IncidentRepository;
-import com.proctoring.backend.repository.ExamSessionRepository;
 import com.proctoring.backend.model.session.ExamSession;
 import com.proctoring.backend.model.session.SessionStatus;
-
-import org.springframework.stereotype.Service;
+import com.proctoring.backend.repository.ExamSessionRepository;
+import com.proctoring.backend.repository.IncidentRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,10 +19,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class IncidentService {
 
-    private final Map<String, Instant> lastIncidentTime = new ConcurrentHashMap<>();
     private static final int INCIDENT_COOLDOWN_SECONDS = 10;
-@Value("${proctor.auto-suspend-threshold:12}")
-private double AUTO_SUSPEND_THRESHOLD;
+
+    private final Map<String, Instant> lastIncidentTime = new ConcurrentHashMap<>();
+
+    @Value("${proctor.auto-suspend-threshold:12}")
+    private double autoSuspendThreshold;
 
     private final IncidentRepository incidentRepository;
     private final ExamSessionRepository sessionRepository;
@@ -42,46 +44,33 @@ private double AUTO_SUSPEND_THRESHOLD;
     }
 
     public Incident reportIncident(Incident incident) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-
         String key = incident.getSessionId() + "_" + incident.getType();
-
         Instant now = Instant.now();
         Instant last = lastIncidentTime.get(key);
 
-        // cooldown check
         if (last != null && Duration.between(last, now).getSeconds() < INCIDENT_COOLDOWN_SECONDS) {
-            return incident; // ignore repeated detection
+            return incident;
         }
 
         lastIncidentTime.put(key, now);
 
         incident.setDetectedAt(now);
-        incident.setCreatedAt(now);
-=======
-        Instant now = Instant.now();
-        incident.setDetectedAt(now);
         incident.setTimestamp(now);
         incident.setCreatedAt(now);
-        attachSnippetUrlIfMissing(incident);
->>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
-=======
-        incident.setDetectedAt(Instant.now());
-        incident.setCreatedAt(Instant.now());
->>>>>>> 64c0d5dcef616131bfcfcd04e1191f086e2a7805
+
+        if (incident.getVideoSnippetUrl() == null || incident.getVideoSnippetUrl().isBlank()) {
+            incident.setVideoSnippetUrl("/snippets/" + incident.getSessionId() + "/" + incident.getId() + ".mp4");
+        }
 
         Incident saved = incidentRepository.save(incident);
-
         applySeverityAndAutoSuspend(saved);
-
-        notifier.notifyIncident(saved);
+        notifier.notifyIncidentDetected(saved);
+        notifier.notifyRiskScoreUpdated(saved.getSessionId());
 
         return saved;
     }
 
     public Incident reportIncident(Incident incident, String email) {
-
         ExamSession session = sessionRepository.findById(incident.getSessionId());
 
         if (session == null) {
@@ -96,10 +85,11 @@ private double AUTO_SUSPEND_THRESHOLD;
     }
 
     private void applySeverityAndAutoSuspend(Incident incident) {
-
         ExamSession session = sessionRepository.findById(incident.getSessionId());
 
-        if (session == null) return;
+        if (session == null) {
+            return;
+        }
 
         double severity = incident.getSeverity() > 0
                 ? incident.getSeverity()
@@ -113,16 +103,13 @@ private double AUTO_SUSPEND_THRESHOLD;
 
         boolean autoSuspended = false;
 
-        if (session.getStatus() == SessionStatus.ACTIVE &&
-                session.getTotalSeverity() >= AUTO_SUSPEND_THRESHOLD) {
-
+        if (session.getStatus() == SessionStatus.ACTIVE && session.getTotalSeverity() >= autoSuspendThreshold) {
             session.setStatus(SessionStatus.SUSPENDED);
             autoSuspended = true;
         }
 
         sessionRepository.save(session);
-
-        notifier.notifySessionUpdate(session);
+        notifier.notifySessionUpdated(session);
 
         if (autoSuspended) {
             Incident autoIncident = new Incident(
@@ -130,41 +117,20 @@ private double AUTO_SUSPEND_THRESHOLD;
                     IncidentType.SESSION_AUTO_SUSPEND,
                     1.0
             );
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-            autoIncident.setDetectedAt(Instant.now());
-            autoIncident.setCreatedAt(Instant.now());
-
-=======
             Instant now = Instant.now();
             autoIncident.setDetectedAt(now);
             autoIncident.setTimestamp(now);
             autoIncident.setCreatedAt(now);
-            attachSnippetUrlIfMissing(autoIncident);
->>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
-=======
-            autoIncident.setDetectedAt(Instant.now());
-            autoIncident.setCreatedAt(Instant.now());
->>>>>>> 64c0d5dcef616131bfcfcd04e1191f086e2a7805
+            autoIncident.setVideoSnippetUrl("/snippets/" + session.getId() + "/auto-suspend-" + now.toEpochMilli() + ".mp4");
             incidentRepository.save(autoIncident);
-
-            notifier.notifyIncident(autoIncident);
+            notifier.notifyIncidentDetected(autoIncident);
         }
     }
-<<<<<<< HEAD
 
     public List<Incident> getBySession(String sessionId) {
-        return incidentRepository.findBySessionId(sessionId);
+        return incidentRepository.findBySessionId(sessionId)
+                .stream()
+                .sorted(Comparator.comparing(Incident::getTimestamp, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 }
-=======
-    public List<Incident> getBySession(String sessionId) {
-    return incidentRepository.findBySessionId(sessionId);
-}
-<<<<<<< HEAD
->>>>>>> 6aff8a3cf07e45b6aa95df40b2087107f40a9b30
-=======
-
-}
->>>>>>> 64c0d5dcef616131bfcfcd04e1191f086e2a7805
