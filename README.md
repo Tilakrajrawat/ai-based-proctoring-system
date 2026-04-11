@@ -1,501 +1,140 @@
-# 🧠 AI-Based Proctoring System
+# 🧠 AI-Based Proctoring and Online Examination Platform
 
-A **production-grade, real-time AI-powered exam proctoring platform** that combines computer vision, WebRTC video streaming, and automated incident detection to ensure exam integrity during remote examinations.
+This repository extends the original **AI-Based Proctoring System** into an integrated **online examination + proctoring platform**.
 
-The system monitors students in real time, detects suspicious behavior using a hybrid AI pipeline (OpenCV + YOLOv8 + MediaPipe), and delivers instant alerts to proctors via WebSocket — reducing manual monitoring workload significantly.
-
----
-
-## 🎯 Problem Statement
-
-Remote examinations face a fundamental challenge — verifying exam integrity without physical supervision. IncidentIQ solves this by:
-
-- Streaming live video from student browsers to proctors in real time
-- Automatically detecting suspicious behavior using computer vision
-- Assigning severity scores to incidents and auto-suspending sessions when thresholds are exceeded
-- Giving proctors a live dashboard to monitor multiple students simultaneously
+It now includes:
+- AI proctoring (camera/WebRTC + incident pipeline + auto-suspend)
+- Exam-scoped RBAC (Admin / Proctor / Student)
+- MCQ question authoring
+- Student exam response workflow
+- Server-side scoring and result reporting
+- Admin-only Excel export
 
 ---
 
-## 🏗️ System Architecture
+## Implemented Features
+
+### 1) Integrated MCQ Examination Module ✅
+- Admin can create, edit, list, and delete MCQ questions per exam.
+- Question fields: `questionText`, `options[]`, `correctOptionIndex`, `marks`, `displayOrder`.
+- Student payload is sanitized and does **not** include answer keys.
+
+### 2) Student Exam Interface ✅
+- Student exam page now includes:
+  - question panel with options
+  - auto-save on option selection
+  - next/previous navigation
+  - question palette / progress indicator
+  - timer with auto-submit trigger
+  - final submit flow
+- Existing proctoring hooks (camera, heartbeat, frame upload, browser event incidents) are preserved.
+
+### 3) Proctor Attendance & Live Analytics ✅
+- Proctor dashboard now includes:
+  - attendance summary cards (registered/present/absent/inactive)
+  - live analytics cards (active/suspended/high-risk/avg risk/incident count)
+  - student progress table (attempted/total, submission state, session/risk/incident state)
+- Proctor does **not** receive correct answers or selected options.
+
+### 4) Server-Side Response Storage & Scoring ✅
+- Backend stores per-student responses by exam.
+- Submission status supported: `IN_PROGRESS`, `SUBMITTED`, `AUTO_SUBMITTED`.
+- On submit, score is computed server-side from stored responses and question key.
+- Result computation is idempotent (resubmits update existing result record).
+
+### 5) Admin Result Dashboard ✅
+- Admin can fetch exam result list and per-student result.
+- Results include score, totals, counts, percentage, submission time, and monitoring metadata.
+
+### 6) Admin Excel Export ✅
+- Admin-only `.xlsx` export powered by Apache POI.
+- Includes: student ID/name (best-effort from existing schema), attendance/session state, attempted/correct/wrong/unanswered, score, percentage, risk score, incident count, submission time.
+
+---
+
+## Partially Implemented / Notes
+
+- The current backend has mixed persistence patterns (JPA + in-memory repositories). New exam-question/response/result flows follow existing in-memory repository style for consistency with active session/incident logic in this repo snapshot.
+- Student timer currently uses frontend countdown with backend submit endpoint integration; exam-duration source is not yet centrally configured per exam entity.
+
+---
+
+## Security Model (Critical)
+
+- **Admin only**:
+  - create/edit/delete questions
+  - admin question view (includes correct option)
+  - result APIs
+  - Excel export
+- **Student only**:
+  - fetch sanitized questions
+  - save answers
+  - submit exam
+  - view own submission status
+- **Proctor/Admin only**:
+  - attendance summary
+  - progress monitoring
+  - live analytics
+- **Never exposed to Student/Proctor payloads**:
+  - `correctOptionIndex`
+  - answer key
+  - student selected options
+
+---
+
+## Architecture Update
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Student Browser                     │
-│   Next.js │ WebRTC Camera │ Tab/Window Event Hooks  │
-└───────────────────────┬─────────────────────────────┘
-                        │ WebRTC Stream + REST
-┌───────────────────────▼─────────────────────────────┐
-│              Spring Boot Backend                     │
-│  Exam Management │ Session Lifecycle │ Incident API  │
-│  WebSocket STOMP │ Exam-Scoped RBAC                 │
-└───────┬───────────────────────────────┬─────────────┘
-        │                               │
-┌───────▼───────────┐         ┌─────────▼─────────────┐
-│   MongoDB          │         │  Python AI Services    │
-│  Exams, Sessions   │         │  FastAPI Microservice  │
-│  Incidents, Users  │         │  OpenCV + YOLOv8       │
-└───────────────────┘         │  MediaPipe             │
-                              └────────────────────────┘
-                                        │
-                              ┌─────────▼──────────────┐
-                              │  Incident Pipeline      │
-                              │  Severity Scoring       │
-                              │  Auto-Suspend Logic     │
-                              └────────────────────────┘
-```
-
----
-
-## ✨ Core Features
-
-### 🔐 Exam-Scoped Role Based Access Control
-
-Users can have **different roles across different exams** — a fully flexible RBAC system.
-
-| Role | Permissions |
-|------|-------------|
-| Admin | Create exams, manage participants, assign roles |
-| Proctor | Monitor sessions, review incidents, suspend/resume/end sessions |
-| Student | Join exam, stream video, submit exam |
-
-**Example — same user, different roles per exam:**
-
-| User | Exam A | Exam B |
-|------|--------|--------|
-| Alice | Admin | Student |
-| Bob | Proctor | — |
-| Charlie | Student | Admin |
-
-Roles are stored per exam in MongoDB, enabling fully flexible exam management.
-
----
-
-### 🎥 Live Video Proctoring (WebRTC)
-
-- Student camera streamed to backend via **WebRTC peer-to-peer** connection
-- Proctor dashboard displays all active sessions in a live grid
-- Low-latency frame extraction for AI analysis
-- Concurrent monitoring of multiple student sessions simultaneously
-
----
-
-### 🤖 AI Detection Pipeline
-
-A **three-stage hybrid computer vision pipeline** runs continuously on student video frames:
-
-```
-Student Camera
-      │
-WebRTC Stream
-      │
-Frame Extraction
-      │
-┌─────▼──────────────┐
-│ OpenCV             │
-│ Frame preprocessing│
-│ Face detection     │
-│ Eye detection      │
-└─────┬──────────────┘
-      │
-┌─────▼──────────────┐
-│ YOLOv8             │
-│ Phone detection    │
-│ Multiple persons   │
-│ Suspicious objects │
-└─────┬──────────────┘
-      │
-┌─────▼──────────────┐
-│ MediaPipe          │
-│ Facial landmarks   │
-│ Gaze estimation    │
-│ Head pose tracking │
-│ Eye closure        │
-└─────┬──────────────┘
-      │
-Incident Generation → Spring Boot → MongoDB → WebSocket Alert
-```
-
-**Detections supported:**
-
-| Detection Type | Tool | Severity |
-|---------------|------|----------|
-| Face not detected | OpenCV | MEDIUM |
-| Multiple faces detected | YOLOv8 | HIGH |
-| Phone detected | YOLOv8 | HIGH |
-| Looking away from screen | MediaPipe | MEDIUM |
-| Eyes closed extended | MediaPipe | MEDIUM |
-| Tab switching | Browser Event | LOW |
-| Window blur | Browser Event | LOW |
-| Fullscreen exit | Browser Event | LOW |
-| Session timeout | Backend | HIGH |
-| Auto-suspend triggered | Backend | CRITICAL |
-
-Each incident contains:
-```json
-{
-  "sessionId": "abc123",
-  "type": "PHONE_DETECTED",
-  "severity": "HIGH",
-  "confidenceScore": 0.91,
-  "severityScore": 4,
-  "timestamp": "2025-03-09T10:15:30Z"
-}
+Student UI (Next.js)
+  ├─ Proctoring hooks (WebRTC / browser events)
+  └─ MCQ exam workflow (student-safe questions, save, submit)
+        │
+        ▼
+Spring Boot Backend
+  ├─ Exam + assignment + session lifecycle
+  ├─ Question management (admin)
+  ├─ Response storage
+  ├─ Server-side scoring + results
+  ├─ Attendance/progress/live analytics
+  └─ Excel export (Apache POI)
+        │
+        ├─ Data stores (repo layer used in this snapshot)
+        └─ AI services integration (incidents / severity)
 ```
 
 ---
 
-### 🔥 Auto-Suspend System
+## API Reference (New/Extended)
 
-The backend continuously tracks **cumulative severity score** per session.
+### Admin Question Management
+- `POST /api/exams/{examId}/questions`
+- `GET /api/exams/{examId}/questions/admin-view`
+- `PUT /api/questions/{questionId}?examId={examId}`
+- `DELETE /api/questions/{questionId}?examId={examId}`
 
-- Every incident adds its severity score to the session total
-- When total severity crosses the configured threshold — session is **automatically suspended**
-- Dashboard immediately reflects suspended status via WebSocket broadcast
-- Proctor can manually **Resume** or **End** the session
+### Student Exam Flow
+- `GET /api/exams/{examId}/questions/student-view`
+- `POST /api/exams/{examId}/responses/save`
+- `POST /api/exams/{examId}/submit`
+- `GET /api/exams/{examId}/my-status`
 
-```
-Incident received
-      │
-Severity score added to session total
-      │
-Total ≥ Threshold?
-      │
-   YES → Auto-suspend session
-        → Broadcast SUSPENDED status via STOMP
-        → Block Resume button on dashboard
-   NO  → Continue monitoring
-```
+### Monitoring (Proctor/Admin)
+- `GET /api/exams/{examId}/attendance`
+- `GET /api/exams/{examId}/attendance/summary`
+- `GET /api/exams/{examId}/progress`
+- `GET /api/analytics/exam/{examId}/live`
 
----
-
-### 🕹️ Manual Proctor Controls
-
-Proctors can take manual action on any session:
-
-| Action | Result |
-|--------|--------|
-| Suspend | Pauses student session immediately |
-| Resume | Restores session (blocked if severity ≥ threshold) |
-| End | Permanently ends session and saves full incident log |
-
-All actions are broadcast live via WebSocket to all connected dashboard clients.
+### Admin Results
+- `GET /api/exams/{examId}/results`
+- `GET /api/exams/{examId}/results/{studentId}`
+- `GET /api/exams/{examId}/results/export`
 
 ---
 
-### 📡 Real-Time Proctor Dashboard
+## Monorepo Structure
 
-- Live session grid showing all active students
-- Severity level highlighting per session
-- Incident feed updating instantly via STOMP WebSocket
-- Resume button automatically disabled when severity threshold exceeded
-- Manual controls per session — Suspend, Resume, End
+- `frontend/` – Next.js App Router + TypeScript + Tailwind
+- `backend/` – Spring Boot + Spring Security + STOMP + repository layer
+- `ai-services/` – FastAPI + OpenCV + YOLOv8 + MediaPipe
+- `docs/` – docs/screenshots
 
----
-### 📋 Attendance Tracking
-
-The system automatically tracks student attendance for every exam session in real time.
-
-**Attendance States:**
-
-| State | Condition |
-|-------|-----------|
-| ABSENT | Student has not started the session yet |
-| PRESENT | Student has started and session is active |
-| INACTIVE | Session was suspended or ended |
-
-**How it works:**
-- When an exam starts, all registered students are marked **ABSENT** by default
-- When a student hits `POST /api/session/start`, their status updates to **PRESENT**
-- If a session is suspended or ended — manually or via auto-suspend — status updates to **INACTIVE**
-- Admin and Proctor can view attendance status per student on the dashboard
-- Full attendance report available per exam via `GET /api/exams/{id}/attendance`
-  
-### 🖥️ Browser Behavior Detection
-
-Client-side event hooks detect browser-level cheating attempts:
-
-- **Tab Switch** — student switches to another browser tab
-- **Window Blur** — student clicks outside the exam window
-- **Fullscreen Exit** — student exits fullscreen mode
-- Each event triggers an incident report to the backend immediately
-
----
-
-## 🧰 Tech Stack
-
-### Frontend
-| Technology | Purpose |
-|-----------|---------|
-| Next.js (App Router) | Student + Proctor dashboard UI |
-| TypeScript | Type-safe frontend code |
-| Tailwind CSS | Styling |
-| WebRTC | Live video streaming |
-| STOMP.js + SockJS | Real-time incident and session updates |
-| Axios | REST API communication |
-
-### Backend
-| Technology | Purpose |
-|-----------|---------|
-| Spring Boot | Main backend service |
-| Spring Security | Authentication and exam-scoped RBAC |
-| WebSocket (STOMP) | Real-time messaging to dashboard |
-| REST APIs | Exam, session, and incident management |
-| MongoDB | Storage for exams, sessions, incidents, users |
-| Java 17 | Backend language |
-| Maven | Build system |
-
-### AI Detection Services
-| Technology | Purpose |
-|-----------|---------|
-| Python | AI service language |
-| FastAPI | AI microservice REST server |
-| OpenCV | Frame preprocessing and face/eye detection |
-| YOLOv8 | Object detection — phones, multiple persons |
-| MediaPipe | Gaze tracking, head pose, eye closure detection |
-| Uvicorn | ASGI server for FastAPI |
-
----
-
-## 📂 Project Structure
-
-```
-ai-proctoring-system/
-├── frontend/
-│   ├── app/
-│   │   ├── student/          # Student exam interface
-│   │   ├── proctor/          # Proctor monitoring dashboard
-│   │   └── admin/            # Exam management
-│   ├── components/
-│   │   ├── VideoStream.tsx   # WebRTC camera component
-│   │   ├── SessionGrid.tsx   # Live session monitoring grid
-│   │   └── IncidentFeed.tsx  # Real-time incident display
-│   └── lib/
-│       ├── webrtc.ts         # WebRTC connection logic
-│       ├── stomp.ts          # WebSocket client
-│       └── events.ts         # Browser behavior hooks
-│
-├── backend/
-│   └── src/main/java/
-│       ├── controller/       # REST API controllers
-│       ├── service/          # Business logic
-│       ├── model/            # MongoDB models
-│       ├── security/         # Spring Security + RBAC
-│       └── websocket/        # STOMP WebSocket config
-│
-├── ai-services/
-│   ├── detection_service.py  # FastAPI main service
-│   ├── gaze_detector.py      # MediaPipe gaze tracking
-│   ├── object_detector.py    # YOLOv8 phone/person detection
-│   └── face_detector.py      # OpenCV face/eye detection
-│
-└── docs/
-    └── screenshots/          # Dashboard screenshots
-```
-
----
-
-## 📡 API Reference
-
-### Exam Management
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| POST | /api/exams | Create exam | Admin |
-| GET | /api/exams | List all exams | Admin/Proctor |
-| POST | /api/exams/{id}/start | Start exam | Admin |
-| POST | /api/exams/{id}/end | End exam | Admin |
-
-### Session Management
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| POST | /api/session/start | Start student session | Student |
-| POST | /api/session/heartbeat | Session keepalive | Student |
-| POST | /api/session/end | End student session | Student/Proctor |
-| PATCH | /api/session/{id}/suspend | Suspend session | Proctor/Auto |
-| PATCH | /api/session/{id}/resume | Resume session | Proctor |
-
-### Incident Reporting
-| Method | Endpoint | Description | Access |
-|--------|----------|-------------|--------|
-| POST | /api/incidents | Report incident | AI Service/Student |
-| GET | /api/incidents/session/{sessionId} | Get session incidents | Proctor/Admin |
-| GET | /api/incidents/exam/{examId} | Get all exam incidents | Admin |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-```
-Node.js 18+
-Java 17+
-Python 3.9+
-MongoDB
-Maven
-```
-
-### 1. Clone Repository
-```bash
-git clone https://github.com/Tilakrajrawat/ai-proctoring-system.git
-cd ai-proctoring-system
-```
-
-### 2. Backend Setup
-```bash
-cd backend
-# Configure MongoDB URI in application.properties
-mvn spring-boot:run
-# Runs on http://localhost:8080
-```
-
-### 3. Frontend Setup
-```bash
-cd frontend
-cp .env.example .env
-npm install
-npm run dev
-# Runs on http://localhost:3000
-```
-
-### 4. AI Services Setup
-```bash
-cd ai-services
-pip install opencv-python ultralytics mediapipe fastapi uvicorn
-python detection_service.py
-# Runs on http://localhost:8000
-```
-
----
-
-## 🔑 Key Design Decisions
-
-**Why WebRTC for video streaming?**
-WebRTC provides peer-to-peer low-latency video without requiring a media server, making it ideal for real-time proctoring where sub-second latency matters.
-
-**Why a separate Python microservice for AI?**
-YOLOv8 and MediaPipe are Python-native libraries. Running them as a separate FastAPI microservice keeps the Spring Boot backend focused on business logic while allowing the AI service to scale independently.
-
-**Why STOMP over raw WebSockets?**
-STOMP provides a messaging protocol on top of WebSockets with built-in support for topics and subscriptions, making it easy to broadcast incidents to specific proctor dashboards without custom routing logic.
-
-**Why exam-scoped RBAC?**
-Real exam platforms need flexible role assignment — a professor might be an admin for their own exam but a student in a training course. Exam-scoped roles reflect this real-world requirement.
-
----
-
-## 📈 Future Enhancements
-- Face mismatch detection using DeepFace for identity verification
-- Distributed AI inference for high-concurrency exams
-- Automated exam analytics and cheating pattern reports
-- Mobile browser support
-- Recording and playback of flagged sessions
-
----
-
-## 👨‍💻 Author
-
-**Tilak Raj Rawat**
-Final Year B.Tech CSE — Graphic Era Hill University
-[LinkedIn](https://linkedin.com/in/tilakrajrawat142) | [GitHub](https://github.com/Tilakrajrawat)
-
----
-
-## 📈 Monitoring Platform Upgrades
-
-### Incident Timeline
-- Added session-level timeline APIs and UI to display suspicious events in strict chronological order.
-- Timeline entries include timestamp, type, confidence, severity, and replay action when snippet URLs are available.
-
-### Incident Playback
-- Incidents now support `videoSnippetUrl` so proctors can replay suspicious moments.
-- Frontend timeline includes a replay modal with native `<video controls />` playback.
-
-### Analytics Dashboard
-- New admin analytics page: `/admin/analytics?examId={examId}`.
-- Includes KPI cards for total students, suspicious sessions, average risk score, and top incident types.
-
-### Risk Heatmap
-- Added session heatmap cards with color-coded risk bands:
-  - Green: 0-30
-  - Yellow: 30-60
-  - Orange: 60-90
-  - Red: 90-100
-
-### Cheating Trend & Incident Stats
-- Added cheating trend visualization and incident statistics panel for exam-level monitoring.
-- Live data enrichment happens via STOMP event subscriptions.
-
-### Session Inspection
-- New deep inspection route: `/proctor/session/{sessionId}`.
-- Three-panel layout:
-  - Left: student metadata + risk + status
-  - Center: live WebRTC feed
-  - Right: incident timeline + replay
-
-### Live Incident Stream Events
-The backend now broadcasts dedicated event channels:
-- `incidentDetected`
-- `sessionUpdated`
-- `riskScoreUpdated`
-
-These power real-time dashboard updates without manual refresh.
-
----
-
-## 🧭 Updated Monitoring Flow
-
-```text
-Student Camera
-↓
-WebRTC Stream
-↓
-Frame Processing
-↓
-AI Detection
-↓
-Temporal Smoothing
-↓
-Incident Pipeline
-↓
-Risk Score Update
-↓
-WebSocket Broadcast
-↓
-Proctor Dashboard
-↓
-Analytics Aggregation
-```
-
----
-
-## 🗺️ Monitoring Architecture Diagram
-
-```text
-┌───────────────────────────────┐
-│ Student Browser (WebRTC Feed) │
-└───────────────┬───────────────┘
-                │
-┌───────────────▼───────────────┐
-│ Spring Boot Proctoring Core   │
-│ - Session lifecycle            │
-│ - Incident ingestion           │
-│ - Risk accumulation            │
-│ - Auto-suspend                 │
-└───────┬───────────────┬───────┘
-        │               │
-┌───────▼───────┐   ┌───▼─────────────────┐
-│ AI Services   │   │ WebSocket Broker     │
-│ OpenCV/YOLO/  │   │ incident/session/risk│
-│ MediaPipe     │   │ update topics        │
-└───────┬───────┘   └───┬─────────────────┘
-        │               │
-        └───────┬───────┘
-                │
-       ┌────────▼────────┐
-       │ Monitoring UI    │
-       │ - Timeline       │
-       │ - Replay         │
-       │ - Heatmap        │
-       │ - Analytics      │
-       └──────────────────┘
-```
