@@ -153,6 +153,9 @@ export default function AdminExamPage() {
 >
   View Attendance
 </button>
+      <button onClick={() => router.push(`/admin/${examId}/questions`)} style={{ marginLeft: 8 }}>
+  Question Management & Results
+</button>
     </div>
   );
 }

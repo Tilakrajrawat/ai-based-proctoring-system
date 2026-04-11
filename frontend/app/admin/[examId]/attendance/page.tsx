@@ -8,8 +8,8 @@ import { getAuthToken } from "../../../../lib/auth";
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
 
 type Attendance = {
-  studentEmail: string;
-  present: boolean;
+  email: string;
+  attended: boolean;
   status: SessionStatus | null;
   lastHeartbeatAt: string | null;
 };
@@ -56,7 +56,7 @@ export default function AttendancePage() {
   const normalized = data.map(a => ({
     ...a,
     present:
-      a.present ||
+      a.attended ||
       a.status === "ACTIVE" ||
       a.status === "SUSPENDED" ||
       a.status === "ENDED" ||
@@ -90,9 +90,9 @@ export default function AttendancePage() {
         </thead>
         <tbody>
           {normalized.map((a, i) => (
-            <tr key={`${a.studentEmail}-${i}`}>
-              <td>{a.studentEmail}</td>
-              <td>{a.present ? "Yes" : "No"}</td>
+            <tr key={`${a.email}-${i}`}>
+              <td>{a.email}</td>
+              <td>{(a.attended ? "Yes" : "No")}</td>
               <td>{a.status ?? "-"}</td>
               <td>
                 {a.lastHeartbeatAt

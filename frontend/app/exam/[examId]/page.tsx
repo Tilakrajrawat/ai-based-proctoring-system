@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useStudentWebRTC } from "./useStudentWebRTC";
 import { getAuthHeaders } from "../../../lib/auth";
+import api from "../../../lib/api";
+import { MyExamStatus, StudentQuestion } from "../../../lib/exam-types";
 
 type AccessState = "checking" | "granted" | "denied" | "submitted";
 type SessionStatus = "ACTIVE" | "SUSPENDED" | "ENDED" | "SUBMITTED";
@@ -29,6 +31,11 @@ export default function StudentExamPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<SessionStatus>("ACTIVE");
   const [showPreview, setShowPreview] = useState(true);
+  const [questions, setQuestions] = useState<StudentQuestion[]>([]);
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [examStatus, setExamStatus] = useState<MyExamStatus | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(60 * 60);
 
   useStudentWebRTC({ examId, sessionId, stream });
 
@@ -76,11 +83,21 @@ export default function StudentExamPage() {
     }
   }, [stream]);
 
+  const loadExamContent = useCallback(async () => {
+    if (!examId) return;
+    const [questionRes, statusRes] = await Promise.all([
+      api.get<StudentQuestion[]>(`/api/exams/${examId}/questions/student-view`),
+      api.get<MyExamStatus>(`/api/exams/${examId}/my-status`),
+    ]);
+    setQuestions(questionRes.data);
+    setExamStatus(statusRes.data);
+  }, [examId]);
+
   useEffect(() => {
     if (!examId) return;
     const checkAccess = async () => {
       try {
-          const res = await fetch(`${API}/api/exams/${examId}/access`, {
+        const res = await fetch(`${API}/api/exams/${examId}/access`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error();
@@ -106,9 +123,10 @@ export default function StudentExamPage() {
       }
       const data = await res.json();
       setSessionId(data.id);
+      await loadExamContent();
     };
     startSession();
-  }, [access, examId]);
+  }, [access, examId, loadExamContent]);
 
   useEffect(() => {
     if (access !== "granted" || stream) return;
@@ -126,7 +144,7 @@ export default function StudentExamPage() {
     if (!sessionId || status !== "ACTIVE") return;
     heartbeatRef.current = setInterval(async () => {
       try {
-          const res = await fetch(`${API}/api/sessions/${sessionId}/heartbeat`, {
+        const res = await fetch(`${API}/api/sessions/${sessionId}/heartbeat`, {
           method: "POST",
           headers: getAuthHeaders(),
         });
@@ -193,57 +211,111 @@ export default function StudentExamPage() {
     };
   }, [reportIncident]);
 
-  const handleEndExam = async () => {
-    if (!sessionId) return;
+  const saveAnswer = async (questionId: string, selectedOptionIndex: number) => {
+    if (!examId || !sessionId) return;
+    setAnswers((prev) => ({ ...prev, [questionId]: selectedOptionIndex }));
+    const res = await api.post<MyExamStatus>(`/api/exams/${examId}/responses/save`, {
+      sessionId,
+      questionId,
+      selectedOptionIndex,
+    });
+    setExamStatus(res.data);
+  };
+
+  const handleSubmit = useCallback(async (autoSubmitted = false) => {
+    if (!examId || !sessionId) return;
+    await api.post(`/api/exams/${examId}/submit`, { sessionId, autoSubmitted });
     await fetch(`${API}/api/sessions/${sessionId}/end`, {
       method: "POST",
       headers: getAuthHeaders(),
     });
     stopStream();
     setStatus("SUBMITTED");
-    router.replace("/dashboard");
-  };
+  }, [examId, sessionId, stopStream]);
 
-  if (access === "checking") return <div>Loading...</div>;
-  if (access === "denied") return <div>Access Denied</div>;
-  if (status === "SUBMITTED" || access === "submitted") return <div>Exam Completed</div>;
+  useEffect(() => {
+    if (status === "SUBMITTED" || access === "submitted") return;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          void handleSubmit(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [status, access, handleSubmit]);
+
+  const progressCount = useMemo(() => Object.keys(answers).length, [answers]);
+  const activeQuestion = questions[current];
+
+  if (access === "checking") return <div className="p-6">Loading...</div>;
+  if (access === "denied") return <div className="p-6">Access Denied</div>;
+  if (status === "SUBMITTED" || access === "submitted") {
+    return <div className="p-8 text-xl">Exam submitted successfully.</div>;
+  }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Exam: {examId}</h1>
+    <div className="p-4 md:p-8 grid lg:grid-cols-3 gap-4">
+      <div className="lg:col-span-2 rounded-xl border p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Exam: {examId}</h1>
+          <div className="text-sm text-red-400 font-semibold">Time Left: {Math.floor(timeLeft / 60)}:{`${timeLeft % 60}`.padStart(2, "0")}</div>
+        </div>
 
-      <div style={{ marginBottom: 10 }}>
-        <button onClick={() => setShowPreview(!showPreview)}>
-          {showPreview ? "Hide Preview" : "Show Preview"}
-        </button>
+        <div className="text-sm text-gray-300">Progress: {examStatus?.attemptedCount ?? progressCount}/{questions.length}</div>
+
+        {activeQuestion ? (
+          <div className="space-y-3">
+            <div className="text-sm text-gray-400">Question {current + 1} of {questions.length}</div>
+            <h2 className="text-lg font-medium">{activeQuestion.questionText}</h2>
+            <div className="space-y-2">
+              {activeQuestion.options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => saveAnswer(activeQuestion.id, idx)}
+                  className={`w-full text-left p-3 rounded border ${answers[activeQuestion.id] === idx ? "border-blue-500 bg-blue-500/10" : "border-gray-700"}`}
+                >
+                  {String.fromCharCode(65 + idx)}. {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>No questions available.</div>
+        )}
+
+        <div className="flex justify-between">
+          <button disabled={current === 0} onClick={() => setCurrent((v) => Math.max(0, v - 1))} className="px-3 py-2 border rounded disabled:opacity-50">Previous</button>
+          <button disabled={current >= questions.length - 1} onClick={() => setCurrent((v) => Math.min(questions.length - 1, v + 1))} className="px-3 py-2 border rounded disabled:opacity-50">Next</button>
+        </div>
+
+        <button onClick={() => handleSubmit(false)} className="w-full bg-green-600 hover:bg-green-700 p-2 rounded">Final Submit</button>
       </div>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        style={{
-          width: "300px",
-          display: showPreview ? "block" : "none",
-          border: "2px solid #ccc",
-          borderRadius: "8px",
-        }}
-      />
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+      <div className="rounded-xl border p-4 space-y-4">
+        <button onClick={() => setShowPreview(!showPreview)} className="px-3 py-1 border rounded w-full">
+          {showPreview ? "Hide Camera Preview" : "Show Camera Preview"}
+        </button>
+        <video ref={videoRef} autoPlay muted playsInline className={`w-full rounded border ${showPreview ? "block" : "hidden"}`} />
+        <canvas ref={canvasRef} className="hidden" />
 
-      {status === "SUSPENDED" && (
-        <div style={{ color: "red", fontWeight: "bold", padding: "10px", border: "1px solid red" }}>
-          EXAM SUSPENDED - Contact Proctor
+        {status === "SUSPENDED" && (
+          <div className="text-red-400 border border-red-500 rounded p-3">EXAM SUSPENDED - Contact Proctor</div>
+        )}
+
+        <div className="grid grid-cols-5 gap-2">
+          {questions.map((q, idx) => (
+            <button key={q.id} onClick={() => setCurrent(idx)} className={`py-1 rounded text-sm border ${answers[q.id] !== undefined ? "bg-emerald-600/20 border-emerald-500" : "border-gray-700"}`}>
+              {idx + 1}
+            </button>
+          ))}
         </div>
-      )}
 
-      <button
-        onClick={handleEndExam}
-        style={{ marginTop: 20, padding: "10px 20px", background: "red", color: "white", borderRadius: "4px" }}
-      >
-        End Exam
-      </button>
+        <button onClick={() => router.replace("/dashboard")} className="w-full border rounded p-2">Back to Dashboard</button>
+      </div>
     </div>
   );
 }
