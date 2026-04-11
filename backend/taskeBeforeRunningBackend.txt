@@ -3,3 +3,6 @@
 
 // kill the running task on backend port
 taskkill /PID 5572 /F 
+
+//run ai-services
+uvicorn detection_service:app --reload
