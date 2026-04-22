@@ -1,0 +1,17 @@
+spring.application.name=backend
+server.port=8080
+
+spring.data.mongodb.uri=mongodb://localhost:27017/ai_proctoring
+
+proctor.auto-suspend-threshold=12.0
+
+logging.level.root=INFO
+logging.level.org.springframework=WARN
+logging.level.org.apache=WARN
+logging.level.org.mongodb=WARN
+logging.level.org.mongodb.driver=ERROR
+logging.level.org.hibernate=WARN
+
+logging.pattern.console=%d{HH:mm:ss} %-5level %msg%n
+
+management.endpoints.web.exposure.include=health

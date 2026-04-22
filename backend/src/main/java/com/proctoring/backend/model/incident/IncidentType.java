@@ -12,6 +12,7 @@ public enum IncidentType {
     TAB_SWITCH,
     WINDOW_BLUR,
     FULLSCREEN_EXIT,
+    BROWSER_BACK,
 
     SESSION_TIMEOUT,
     SESSION_AUTO_SUSPEND,

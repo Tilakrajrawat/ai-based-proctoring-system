@@ -6,22 +6,23 @@ import io from "socket.io-client";
 export function useProctorWebRTC(
   examId: string,
   sessionId: string | null,
-  videoRef: React.RefObject<HTMLVideoElement>
+  videoRef: React.RefObject<HTMLVideoElement | null>
 ) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   useEffect(() => {
-    if (!examId || !sessionId || !videoRef.current || pcRef.current) return;
+    if (!examId || !sessionId || pcRef.current) return;
 
     const roomId = `${examId}:${sessionId}`;
+    let isMounted = true;
 
     const socket = io("http://localhost:3001", {
       reconnection: true,
+      transports: ["websocket", "polling"],
     });
 
     socketRef.current = socket;
-    socket.emit("join", { roomId, role: "proctor" });
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -29,34 +30,72 @@ export function useProctorWebRTC(
 
     pcRef.current = pc;
 
-    pc.ontrack = (e) => {
+    socket.emit("join", { roomId, role: "proctor" });
+
+    pc.ontrack = (event) => {
+      if (!isMounted) return;
+
+      const stream = event.streams?.[0];
+      if (!stream) return;
+
       if (videoRef.current) {
-        videoRef.current.srcObject = e.streams[0];
+        videoRef.current.srcObject = stream;
       }
     };
 
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        socket.emit("ice", { roomId, candidate: e.candidate });
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("ice", { roomId, candidate: event.candidate });
       }
     };
 
     socket.on("offer", async (offer: RTCSessionDescriptionInit) => {
-      await pc.setRemoteDescription(offer);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit("answer", { roomId, answer });
+      try {
+        if (pc.signalingState === "closed") return;
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        socket.emit("answer", { roomId, answer });
+      } catch (err) {
+        console.error("Proctor failed to handle offer", err);
+      }
     });
 
     socket.on("ice", async (candidate: RTCIceCandidateInit) => {
-      await pc.addIceCandidate(candidate);
+      try {
+        if (!pc.remoteDescription) return;
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error("Proctor failed to add ICE candidate", err);
+      }
     });
 
     socket.emit("request-offer", { roomId });
 
     return () => {
-      socket.disconnect();
-      pc.close();
+      isMounted = false;
+
+      try {
+        socket.off("offer");
+        socket.off("ice");
+        socket.disconnect();
+      } catch {}
+
+      try {
+        pc.ontrack = null;
+        pc.onicecandidate = null;
+        pc.getReceivers().forEach((receiver) => receiver.track?.stop());
+        pc.close();
+      } catch {}
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      socketRef.current = null;
       pcRef.current = null;
     };
   }, [examId, sessionId, videoRef]);

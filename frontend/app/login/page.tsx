@@ -44,50 +44,156 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
-      <div className="w-full max-w-md p-6 rounded-xl bg-gray-900 shadow-lg">
-        <h1 className="text-2xl font-semibold mb-4">AI Proctoring Login</h1>
+    <main className="page-shell flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 lg:grid-cols-2">
+        {/* Left Info Panel */}
+        <section className="glass-card accent-border relative overflow-hidden p-8 md:p-10">
+          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
+          <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
 
-        {step === "email" && (
-          <>
-            <input
-              type="email"
-              placeholder="Email address"
-              className="w-full p-3 rounded bg-gray-800 border border-gray-700 mb-4"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button
-              onClick={sendOtp}
-              disabled={loading}
-              className="w-full bg-blue-600 py-2 rounded hover:bg-blue-700"
-            >
-              {loading ? "Sending..." : "Send OTP"}
-            </button>
-          </>
-        )}
+          <div className="relative z-10">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+              AI Proctoring System
+            </div>
 
-        {step === "otp" && (
-          <>
-            <input
-              type="text"
-              placeholder="Enter OTP"
-              className="w-full p-3 rounded bg-gray-800 border border-gray-700 mb-4"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-            />
-            <button
-              onClick={verifyOtp}
-              disabled={loading}
-              className="w-full bg-green-600 py-2 rounded hover:bg-green-700"
-            >
-              {loading ? "Verifying..." : "Verify OTP"}
-            </button>
-          </>
-        )}
+            <h1 className="max-w-xl text-4xl font-semibold leading-tight text-white md:text-5xl">
+              Secure online exams with live AI-powered monitoring
+            </h1>
 
-        {error && <p className="text-red-500 mt-3">{error}</p>}
+            <p className="mt-5 max-w-lg text-base leading-7 text-white/65">
+              Authenticate, enter your exam environment, and let the platform
+              continuously monitor integrity through real-time proctoring,
+              behavior signals, and incident detection.
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <FeatureCard title="Live Monitoring" value="24/7" />
+              <FeatureCard title="Risk Analysis" value="AI" />
+              <FeatureCard title="Session Security" value="OTP" />
+            </div>
+
+            <div className="mt-8 grid gap-3 text-sm text-white/70">
+              <p>• Face verification and live session protection</p>
+              <p>• Suspicious behavior tracking and alerts</p>
+              <p>• Real-time analytics for admins and proctors</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Right Login Panel */}
+        <section className="glass-card accent-border p-8 md:p-10">
+          <div className="mx-auto max-w-md">
+            <div className="mb-6">
+              <p className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300/90">
+                Sign in
+              </p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+                Access your exam portal
+              </h2>
+              <p className="mt-2 text-sm text-white/55">
+                Use your registered email to receive a one-time verification code.
+              </p>
+            </div>
+
+            <div className="mb-6 flex gap-2">
+              <StepChip active={step === "email"} label="1. Email" />
+              <StepChip active={step === "otp"} label="2. OTP" />
+            </div>
+
+            {step === "email" && (
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="mb-2 block text-sm text-white/70">
+                    Registered email
+                  </span>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    className="ai-input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </label>
+
+                <button
+                  onClick={sendOtp}
+                  disabled={loading || !email}
+                  className="ai-button-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Sending OTP..." : "Send OTP"}
+                </button>
+              </div>
+            )}
+
+            {step === "otp" && (
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="mb-2 block text-sm text-white/70">
+                    Verification code
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Enter OTP"
+                    className="ai-input"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                  />
+                </label>
+
+                <button
+                  onClick={verifyOtp}
+                  disabled={loading || !otp}
+                  className="ai-button-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Verifying..." : "Verify & Continue"}
+                </button>
+
+                <button
+                  onClick={() => setStep("email")}
+                  disabled={loading}
+                  className="ai-button-secondary w-full"
+                >
+                  Back to email
+                </button>
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-8 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 text-sm text-white/55">
+              Make sure your webcam, microphone, and browser permissions are enabled
+              before starting the exam.
+            </div>
+          </div>
+        </section>
       </div>
+    </main>
+  );
+}
+
+function StepChip({ active, label }: { active: boolean; label: string }) {
+  return (
+    <div
+      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? "border border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
+          : "border border-white/[0.06] bg-white/[0.03] text-white/45"
+      }`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function FeatureCard({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
+      <p className="text-xs uppercase tracking-[0.16em] text-white/45">{title}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
     </div>
   );
 }
