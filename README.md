@@ -1,16 +1,3 @@
-Yes — your current README is **good**, but the formatting got **broken after the architecture code block**.
-
-You accidentally merged many sections **inside / after the code block without proper markdown headings**.
-
-## Best move:
-
-I’ll give you a **clean final README in one single file**, properly formatted and shorter/cleaner (best for your project).
-
----
-
-# Final `README.md` (single file, ready to paste)
-
-````md
 # 🧠 AI-Based Proctoring and Online Examination Platform
 
 This project extends a baseline **AI-Based Proctoring System** into a full-stack **online examination and invigilation platform**.

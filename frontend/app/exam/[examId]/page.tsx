@@ -86,7 +86,9 @@ export default function StudentExamPage() {
 
         if (res.ok) {
           const data = await res.json();
-          if (data.status) setStatus(data.status);
+          if (data.status) {
+            setStatus(data.status as SessionStatus);
+          }
         }
       } catch (err) {
         console.error("Failed to handle violation", err);
@@ -141,6 +143,10 @@ export default function StudentExamPage() {
 
     setQuestions(questionRes.data);
     setExamStatus(statusRes.data);
+
+    if (statusRes.data?.attemptedCount && questionRes.data.length > 0) {
+      // optional: keep current as 0; backend doesn't expose answers here
+    }
   }, [examId]);
 
   const handleSubmit = useCallback(
@@ -164,10 +170,13 @@ export default function StudentExamPage() {
         if (document.fullscreenElement) {
           try {
             await document.exitFullscreen();
-          } catch {}
+          } catch {
+            // ignore
+          }
         }
 
         stopStream();
+        setLockdownActive(false);
         setStatus("SUBMITTED");
         setAccess("submitted");
       } catch (err) {
@@ -176,10 +185,13 @@ export default function StudentExamPage() {
         if (document.fullscreenElement) {
           try {
             await document.exitFullscreen();
-          } catch {}
+          } catch {
+            // ignore
+          }
         }
 
         stopStream();
+        setLockdownActive(false);
         setStatus("SUBMITTED");
         setAccess("submitted");
       }
@@ -251,6 +263,7 @@ export default function StudentExamPage() {
     void startSession();
   }, [access, examId, loadExamContent]);
 
+  // Get camera stream only
   useEffect(() => {
     if (access !== "granted" || stream) return;
 
@@ -258,10 +271,20 @@ export default function StudentExamPage() {
       .getUserMedia({ video: true, audio: false })
       .then((s) => {
         setStream(s);
-        if (videoRef.current) videoRef.current.srcObject = s;
       })
-      .catch(() => setStatus("SUSPENDED"));
+      .catch((err) => {
+        console.error("Failed to access webcam", err);
+        setStatus("SUSPENDED");
+      });
   }, [access, stream]);
+
+  // Attach stream when video element becomes available (fixes blank preview after fullscreen gate)
+  useEffect(() => {
+    if (!videoRef.current || !stream) return;
+
+    videoRef.current.srcObject = stream;
+    void videoRef.current.play().catch(() => {});
+  }, [stream, showFullscreenGate]);
 
   useEffect(() => {
     if (!sessionId || status !== "ACTIVE") return;
@@ -297,7 +320,9 @@ export default function StudentExamPage() {
 
         if (res.ok) {
           const data = await res.json();
-          if (data.status) setStatus(data.status);
+          if (data.status) {
+            setStatus(data.status as SessionStatus);
+          }
         }
       } catch (err) {
         console.error("Failed to poll session", err);
@@ -370,6 +395,15 @@ export default function StudentExamPage() {
     };
   }, [lockdownActive, status, access, handleViolation]);
 
+  // If backend ends/submits session, reflect immediately
+  useEffect(() => {
+    if (status === "SUBMITTED" || status === "ENDED") {
+      stopStream();
+      setLockdownActive(false);
+      setAccess("submitted");
+    }
+  }, [status, stopStream]);
+
   useEffect(() => {
     if (status === "SUBMITTED" || access === "submitted") return;
 
@@ -439,7 +473,7 @@ export default function StudentExamPage() {
     );
   }
 
-  if (status === "SUBMITTED" || access === "submitted") {
+  if (status === "SUBMITTED" || status === "ENDED" || access === "submitted") {
     return (
       <main className="page-shell flex min-h-screen items-center justify-center px-4">
         <div className="glass-card accent-border w-full max-w-xl p-8 text-center">
