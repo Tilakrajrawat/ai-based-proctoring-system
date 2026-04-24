@@ -503,3 +503,17 @@ It goes beyond a standalone proctoring demo by combining:
 
 The current implementation is intentionally designed as a **working academic prototype** with clear extension paths toward persistent storage, media replay, and production-grade scalability.
 
+
+## 👨‍💻 Author
+
+**Tilak Raj Rawat**  
+GitHub: [github.com/Tilakrajrawat](https://github.com/Tilakrajrawat)  
+LinkedIn: [linkedin.com/in/tilakrajrawat142](https://in.linkedin.com/in/tilakrajrawat142)
+
+## 📜 License
+
+This project is licensed under the **MIT License**.
+
+## ⭐ Support
+
+If you found this project useful, consider starring the repository.
