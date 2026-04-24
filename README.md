@@ -468,6 +468,26 @@ This project demonstrates practical understanding of:
 
 ---
 
+## 📸 Screenshots
+
+### Login Page
+![Login Page](docs/login-page.png)
+
+### Student Exam Interface
+![Student Exam Page](docs/student-exam-page.png)
+
+### Proctor Dashboard
+![Proctor Dashboard](docs/proctor-dashboard.png)
+
+### Live Incidents Page
+![Live Incidents Page](docs/live-incidents-page.png)
+
+### Live Analytics Dashboard
+![Analytics Dashboard](docs/analytics-dashboard.png)
+
+### Admin Question Management Dashboard
+![Admin Question Management Dashboard](docs/admin-result-question-management-dashboard.png)
+
 ## 📝 Conclusion
 
 This repository represents an integrated **AI-based proctoring + online examination platform** suitable for a **final-year major project**.
